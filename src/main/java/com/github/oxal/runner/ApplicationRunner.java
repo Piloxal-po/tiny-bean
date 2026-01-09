@@ -1,9 +1,12 @@
 package com.github.oxal.runner;
 
 import com.github.oxal.annotation.Application;
+import com.github.oxal.annotation.Bean;
 import com.github.oxal.annotation.Qualifier;
+import com.github.oxal.annotation.ScopeType;
 import com.github.oxal.context.Context;
 import com.github.oxal.context.ContextService;
+import com.github.oxal.object.KeyDefinition;
 import com.github.oxal.scanner.ApplicationScanner;
 
 import java.lang.reflect.Constructor;
@@ -19,86 +22,99 @@ public class ApplicationRunner {
             throw new RuntimeException(Application.class.getName() + " is not present in annotation of " + application.getName());
         }
 
-        Application Configuration = application.getAnnotation(Application.class);
+        Application configuration = application.getAnnotation(Application.class);
 
-        String[] packages = Configuration.packages();
-        if (Configuration.packages().length == 0) {
+        String[] packages = configuration.packages();
+        if (configuration.packages().length == 0) {
             packages = new String[]{application.getPackageName()};
         }
 
-        Context contexte = ContextService.createContexte(application, packages);
-
+        Context context = ContextService.createContexte(application, packages);
         ApplicationScanner.scanBeans(packages);
+        System.out.println("Bean definitions found: " + context.getBeanDefinitions().size());
+    }
 
-        System.out.println("Beans found: " + contexte.getBeans().size());
+    public static void cleanContext() {
+        Context context = ContextService.getContext();
+        if (context != null) {
+            context.getSingletonInstances().clear();
+            context.getBeanDefinitions().clear();
+        }
     }
 
     public static <T> T loadBean(Class<T> beanClass) {
         return loadBean(beanClass, null);
     }
 
+    @SuppressWarnings("unchecked")
     public static <T> T loadBean(Class<T> beanClass, String beanName) {
         if (beanClass == null) {
-            throw new RuntimeException("beanClass is null");
+            throw new IllegalArgumentException("beanClass cannot be null");
         }
 
-        T t = null;
+        Context context = ContextService.getContext();
+        KeyDefinition key = context.getBeanDefinitionKey(beanClass, beanName)
+                .orElseThrow(() -> new RuntimeException("No bean definition found for class: " + beanClass.getName() + " and name: " + beanName));
 
-        try {
-            return ContextService.getContext().getExecutableComputed(beanClass, beanName);
-        } catch (Exception e) {
-            Executable executable = ContextService.getContext().getExecutable(beanClass, beanName);
-            if (executable instanceof Method method) {
-                t = loadBeanByMethod(method);
-            } else if (executable instanceof Constructor constructor) {
-                t = (T) loadBeanByConstructor(constructor);
-            }
+        Executable executable = context.getBeanDefinitions().get(key);
+        Bean beanAnnotation = executable.getAnnotation(Bean.class);
+        if (beanAnnotation == null) { // Should not happen if scanner is correct
+             beanAnnotation = executable.getDeclaringClass().getAnnotation(Bean.class);
         }
 
-        if (t == null) {
-            throw new RuntimeException("beanClass: " + beanClass.getName() + " is not a bean");
+        if (beanAnnotation.scope() == ScopeType.PROTOTYPE) {
+            return createBeanInstance(executable);
         }
 
-        ContextService.getContext().addBeanComputed(beanClass, beanName, t);
-        ContextService.getContext().deleteBean(beanClass, beanName);
-        return t;
+        // Default to SINGLETON
+        return (T) context.getSingletonInstances().computeIfAbsent(key, k -> createBeanInstance(executable));
+    }
+
+    private static <T> T createBeanInstance(Executable executable) {
+        if (executable instanceof Method method) {
+            return loadBeanByMethod(method);
+        } else if (executable instanceof Constructor<?> constructor) {
+            return (T) loadBeanByConstructor(constructor);
+        }
+        throw new IllegalStateException("Unsupported executable type: " + executable.getClass().getName());
     }
 
     private static <T> T processLoad(Executable executable, BiFunction<Object, Object[], T> invocation) {
         Class<?> classContainer = executable.getDeclaringClass();
         Object instance = null;
-        try {
-            Constructor c = classContainer.getDeclaredConstructor();
-            instance = c.newInstance();
-        } catch (NoSuchMethodException e) {
-            if (executable instanceof Method) {
-                throw new RuntimeException(classContainer.getSimpleName()  + " have not an empty constructor");
+
+        if (executable instanceof Method) {
+            try {
+                Constructor<?> c = classContainer.getDeclaredConstructor();
+                c.setAccessible(true);
+                instance = c.newInstance();
+            } catch (NoSuchMethodException e) {
+                throw new RuntimeException(classContainer.getSimpleName() + " must have a no-arg constructor to host @Bean methods.", e);
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to instantiate configuration class " + classContainer.getSimpleName(), e);
             }
-        } catch (Exception e) {
-            throw new RuntimeException(e);
         }
+
         try {
             Object[] args = new Object[executable.getParameterCount()];
             for (int i = 0; i < executable.getParameterCount(); i++) {
-                Qualifier qualifier = null;
-                try {
-                    qualifier = executable.getParameters()[i].getAnnotation(Qualifier.class);
-                } catch (Exception ignored) {
-                }
-                args[i] = loadBean(executable.getParameterTypes()[i], qualifier != null ? qualifier.value() : null);
+                Qualifier qualifier = executable.getParameters()[i].getAnnotation(Qualifier.class);
+                String qualifierName = (qualifier != null) ? qualifier.value() : null;
+                args[i] = loadBean(executable.getParameterTypes()[i], qualifierName);
             }
             return invocation.apply(instance, args);
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            throw new RuntimeException("Failed to resolve dependencies for " + executable.getName(), e);
         }
     }
 
     private static <T> T loadBeanByMethod(Method method) {
         return processLoad(method, (instance, args) -> {
             try {
+                method.setAccessible(true);
                 return (T) method.invoke(instance, args);
             } catch (IllegalAccessException | InvocationTargetException e) {
-                throw new RuntimeException(e);
+                throw new RuntimeException("Failed to invoke @Bean method: " + method.getName(), e);
             }
         });
     }
@@ -106,9 +122,10 @@ public class ApplicationRunner {
     private static <T> T loadBeanByConstructor(Constructor<T> constructor) {
         return processLoad(constructor, (instance, args) -> {
             try {
+                constructor.setAccessible(true);
                 return constructor.newInstance(args);
-            } catch (IllegalAccessException | InvocationTargetException | InstantiationException e) {
-                throw new RuntimeException(e);
+            } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
+                throw new RuntimeException("Failed to invoke @Bean constructor: " + constructor.getName(), e);
             }
         });
     }

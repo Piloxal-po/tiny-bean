@@ -10,4 +10,5 @@ import java.lang.annotation.Target;
 public @interface Bean {
     String DEFAULT = "DEFAULT";
     String value() default DEFAULT;
+    ScopeType scope() default ScopeType.SINGLETON;
 }
