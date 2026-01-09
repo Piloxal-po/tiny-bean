@@ -1,5 +1,7 @@
 # Tiny-Bean: A Lightweight Dependency Injection Framework
 
+[![](https://jitpack.io/v/Piloxal-po/tiny-bean.svg)](https://jitpack.io/#Piloxal-po/tiny-bean)
+
 **Tiny-Bean** is a minimalist, annotation-driven Inversion of Control (IoC) container for Java. Inspired by the core principles of frameworks like Spring, it provides a simple yet powerful way to manage your application's components and their dependencies.
 
 It is designed to be easy to understand and lightweight, with minimal, carefully chosen dependencies.
