@@ -42,13 +42,13 @@ For Maven, add this to your `pom.xml`:
 
 ### 2. Add the Tiny-Bean Dependency
 
-Once the repository is added, you can include Tiny-Bean in your project. Replace `v1.0.0` with the desired [release tag](https://github.com/oxal/tiny-bean/tags).
+Once the repository is added, you can include Tiny-Bean in your project. Replace `1.0.1` with the desired [release tag](https://github.com/Piloxal-po/tiny-bean/tags).
 
 ```xml
 <dependency>
     <groupId>com.github.oxal</groupId>
     <artifactId>tiny-bean</artifactId>
-    <version>1.0.0</version>
+    <version>1.0.1</version>
 </dependency>
 ```
 
