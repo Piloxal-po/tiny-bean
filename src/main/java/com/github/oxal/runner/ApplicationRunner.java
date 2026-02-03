@@ -11,6 +11,7 @@ import com.github.oxal.scanner.ApplicationScanner;
 import io.github.classgraph.ClassGraph;
 import io.github.classgraph.ScanResult;
 
+import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
 import java.lang.reflect.InvocationTargetException;
@@ -110,19 +111,43 @@ public class ApplicationRunner {
         }
 
         KeyDefinition key = context.getBeanDefinitionKey(beanClass, beanName).get();
-
         Executable executable = context.getBeanDefinitions().get(key);
-        Bean beanAnnotation = executable.getAnnotation(Bean.class);
-        if (beanAnnotation == null) { // Should not happen if scanner is correct
-            beanAnnotation = executable.getDeclaringClass().getAnnotation(Bean.class);
-        }
 
-        if (beanAnnotation.scope() == ScopeType.PROTOTYPE) {
+        // Find the effective scope from the @Bean or stereotype annotation
+        ScopeType scope = findBeanScope(executable);
+
+        if (scope == ScopeType.PROTOTYPE) {
             return createBeanInstance(executable);
         }
 
         // Default to SINGLETON
         return (T) context.getSingletonInstances().computeIfAbsent(key, k -> createBeanInstance(executable));
+    }
+
+    private static ScopeType findBeanScope(Executable executable) {
+        // Check on the executable itself (for method-based beans)
+        for (Annotation annotation : executable.getAnnotations()) {
+            if (annotation.annotationType().isAnnotationPresent(Bean.class) || annotation.annotationType().getName().equals(Bean.class.getName())) {
+                try {
+                    Method scopeMethod = annotation.annotationType().getMethod("scope");
+                    return (ScopeType) scopeMethod.invoke(annotation);
+                } catch (Exception e) { /* Ignore and continue */ }
+            }
+        }
+
+        // Check on the class (for constructor-based beans)
+        if (executable instanceof Constructor) {
+            for (Annotation annotation : executable.getDeclaringClass().getAnnotations()) {
+                if (annotation.annotationType().isAnnotationPresent(Bean.class) || annotation.annotationType().getName().equals(Bean.class.getName())) {
+                    try {
+                        Method scopeMethod = annotation.annotationType().getMethod("scope");
+                        return (ScopeType) scopeMethod.invoke(annotation);
+                    } catch (Exception e) { /* Ignore and continue */ }
+                }
+            }
+        }
+
+        return ScopeType.SINGLETON; // Default scope
     }
 
     private static <T> T createBeanInstance(Executable executable) {

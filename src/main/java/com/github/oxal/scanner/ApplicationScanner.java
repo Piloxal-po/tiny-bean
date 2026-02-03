@@ -9,6 +9,7 @@ import com.github.oxal.object.KeyDefinition;
 import io.github.classgraph.MethodInfo;
 import io.github.classgraph.ScanResult;
 
+import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.Comparator;
@@ -17,10 +18,6 @@ import java.util.stream.Collectors;
 
 public class ApplicationScanner {
 
-    /**
-     * Finds, sorts, and executes all @BeforeContextLoad callbacks.
-     * This is done before the context is created.
-     */
     public static void executeBeforeCallbacks(ScanResult scanResult) {
         List<Method> beforeCallbacks = scanResult.getClassesWithMethodAnnotation(BeforeContextLoad.class.getName())
                 .stream()
@@ -28,9 +25,8 @@ public class ApplicationScanner {
                 .map(MethodInfo::loadClassAndGetMethod)
                 .peek(ApplicationScanner::validateBeforeCallback)
                 .sorted(Comparator.comparingInt(m -> m.getAnnotation(BeforeContextLoad.class).order()))
-                .collect(Collectors.toList());
+                .toList();
 
-        // Execute them immediately
         for (Method callback : beforeCallbacks) {
             try {
                 callback.setAccessible(true);
@@ -46,9 +42,6 @@ public class ApplicationScanner {
         }
     }
 
-    /**
-     * Populates the context with bean definitions and @AfterContextLoad callbacks.
-     */
     public static void populateContextFromScan(ScanResult scanResult) {
         Context context = ContextService.getContext();
         scanBeans(scanResult, context);
@@ -56,27 +49,57 @@ public class ApplicationScanner {
     }
 
     private static void scanBeans(ScanResult scanResult, Context context) {
-        // Scan for class beans
-        scanResult.getClassesWithAnnotation(Bean.class.getName()).loadClasses(true).forEach(clazz -> {
+        String beanAnnotationName = Bean.class.getName();
+
+        scanResult.getClassesWithAnnotation(beanAnnotationName).loadClasses(true).forEach(clazz -> {
+            if (clazz.isAnnotation()) {
+                return;
+            }
+
             if (clazz.getConstructors().length > 1) {
                 throw new RuntimeException("More than one constructor found for " + clazz.getSimpleName());
             }
             KeyDefinition key = KeyDefinition.builder().type(clazz).build();
-            Bean bean = clazz.getAnnotation(Bean.class);
-            if (bean != null && !Bean.DEFAULT.equals(bean.value())) {
-                key.setName(bean.value());
+
+            for (Annotation annotation : clazz.getAnnotations()) {
+                if (annotation.annotationType().isAnnotationPresent(Bean.class) || annotation.annotationType().getName().equals(beanAnnotationName)) {
+                    try {
+                        Method valueMethod = annotation.annotationType().getMethod("value");
+                        String value = (String) valueMethod.invoke(annotation);
+                        if (!Bean.DEFAULT.equals(value)) {
+                            key.setName(value);
+                        }
+                    } catch (NoSuchMethodException e) {
+                        // Annotation doesn't have a 'value' attribute, ignore.
+                    } catch (Exception e) {
+                        throw new RuntimeException("Error reading bean properties", e);
+                    }
+                    break;
+                }
             }
             context.addBeanDefinition(key, clazz.getConstructors()[0]);
         });
 
-        // Scan for method beans
-        scanResult.getClassesWithMethodAnnotation(Bean.class.getName()).forEach(classInfo ->
-                classInfo.getMethodInfo().filter(mi -> mi.hasAnnotation(Bean.class.getName())).forEach(methodInfo -> {
+        scanResult.getClassesWithMethodAnnotation(beanAnnotationName).forEach(classInfo ->
+                classInfo.getMethodInfo().filter(mi -> mi.hasAnnotation(beanAnnotationName)).forEach(methodInfo -> {
                     Method method = methodInfo.loadClassAndGetMethod();
                     KeyDefinition key = KeyDefinition.builder().name(method.getName()).type(method.getReturnType()).build();
-                    Bean bean = method.getAnnotation(Bean.class);
-                    if (bean != null && !Bean.DEFAULT.equals(bean.value())) {
-                        key.setName(bean.value());
+
+                    for (Annotation annotation : method.getAnnotations()) {
+                        if (annotation.annotationType().isAnnotationPresent(Bean.class) || annotation.annotationType().getName().equals(beanAnnotationName)) {
+                            try {
+                                Method valueMethod = annotation.annotationType().getMethod("value");
+                                String value = (String) valueMethod.invoke(annotation);
+                                if (!Bean.DEFAULT.equals(value)) {
+                                    key.setName(value);
+                                }
+                            } catch (NoSuchMethodException e) {
+                                // Annotation doesn't have a 'value' attribute, ignore.
+                            } catch (Exception e) {
+                                throw new RuntimeException("Error reading bean properties", e);
+                            }
+                            break;
+                        }
                     }
                     context.addBeanDefinition(key, method);
                 })
@@ -84,7 +107,6 @@ public class ApplicationScanner {
     }
 
     private static void scanAfterCallbacks(ScanResult scanResult, Context context) {
-        // AfterContextLoad callbacks
         List<Method> afterCallbacks = scanResult.getClassesWithMethodAnnotation(AfterContextLoad.class.getName())
                 .stream()
                 .flatMap(ci -> ci.getMethodInfo().filter(mi -> mi.hasAnnotation(AfterContextLoad.class.getName())).stream())
@@ -108,6 +130,5 @@ public class ApplicationScanner {
         if (!Modifier.isPublic(method.getModifiers())) {
             throw new RuntimeException("@AfterContextLoad method must be public: " + method.getName());
         }
-        // Validation is relaxed. The DI container will resolve parameters at runtime.
     }
 }

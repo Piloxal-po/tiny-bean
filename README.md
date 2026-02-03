@@ -14,6 +14,8 @@ It is designed to be easy to understand and lightweight, with minimal, carefully
 
 - **Annotation-Driven:** Configure your application using simple annotations like `@Application`, `@Bean`, and
   `@Qualifier`.
+- **Stereotype Annotations:** Create your own annotations (like `@Service` or `@Component`) that act as aliases for
+  `@Bean`.
 - **Lifecycle Callbacks:** Hook into the application startup process with `@BeforeContextLoad` and `@AfterContextLoad`.
 - **Classpath Scanning:** Automatically discovers and registers your beans from specified packages.
 - **Dependency Injection:** Supports constructor-based dependency injection.
@@ -50,7 +52,7 @@ For Maven, add this to your `pom.xml`:
 
 ### 2. Add the Tiny-Bean Dependency
 
-Once the repository is added, you can include Tiny-Bean in your project. Replace `1.1.0` with the
+Once the repository is added, you can include Tiny-Bean in your project. Replace `1.2.0` with the
 desired [release tag](https://github.com/Piloxal-po/tiny-bean/tags).
 
 ```xml
@@ -58,7 +60,7 @@ desired [release tag](https://github.com/Piloxal-po/tiny-bean/tags).
 <dependency>
     <groupId>com.github.oxal</groupId>
     <artifactId>tiny-bean</artifactId>
-    <version>1.1.0</version>
+    <version>1.2.0</version>
 </dependency>
 ```
 
@@ -91,7 +93,7 @@ public class MyApplication {
 
 ## Usage Examples
 
-### Defining Beans
+### Defining Beans with `@Bean`
 
 There are two ways to declare a bean: by annotating a class or a method.
 
@@ -107,30 +109,7 @@ import com.github.oxal.annotation.Bean;
 
 @Bean
 public class MyService {
-
-    private final MyRepository myRepository;
-
-    // Dependencies are automatically injected via the constructor
-    public MyService(MyRepository myRepository) {
-        this.myRepository = myRepository;
-    }
-
-    public void doSomething() {
-        System.out.println("Doing something with data: " + myRepository.getData());
-    }
-}
-```
-
-```java
-package com.myapp.repository;
-
-import com.github.oxal.annotation.Bean;
-
-@Bean
-public class MyRepository {
-    public String getData() {
-        return "Hello, Tiny-Bean!";
-    }
+    // ...
 }
 ```
 
@@ -144,20 +123,11 @@ package com.myapp.config;
 
 import com.github.oxal.annotation.Bean;
 
-// A class that holds bean definitions
 @Bean
 public class AppConfig {
-
-    // This method produces a String bean named "welcomeMessage"
     @Bean("welcomeMessage")
     public String welcomeMessage() {
         return "Welcome to the application!";
-    }
-
-    // This method produces another String bean with a different name
-    @Bean("goodbyeMessage")
-    public String goodbyeMessage() {
-        return "Thanks for using the application!";
     }
 }
 ```
@@ -167,24 +137,17 @@ public class AppConfig {
 When you have multiple beans of the same type, you can use `@Qualifier` to specify which one to inject.
 
 ```java
-package com.myapp.service;
-
 import com.github.oxal.annotation.Bean;
 import com.github.oxal.annotation.Qualifier;
 
 @Bean
 public class GreetingService {
-
     private final String message;
 
-    // Inject the bean named "welcomeMessage"
     public GreetingService(@Qualifier("welcomeMessage") String message) {
         this.message = message;
     }
-
-    public void greet() {
-        System.out.println(message);
-    }
+    // ...
 }
 ```
 
@@ -233,6 +196,48 @@ assert processor1 !=processor2;
 
 ## Advanced Features
 
+### Stereotype Annotations
+
+To better organize your code, you can create your own "stereotype" annotations that act as specialized aliases for
+`@Bean`. To do this, simply create a new annotation and meta-annotate it with `@Bean`.
+
+**1. Create your custom annotation:**
+
+To pass through properties like `value` (for the bean name) or `scope`, you must redeclare them in your custom
+annotation.
+
+
+```java
+import com.github.oxal.annotation.Bean;
+import com.github.oxal.annotation.ScopeType;
+
+import java.lang.annotation.*;
+
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.TYPE)
+@Bean // <-- Meta-annotation
+public @interface Service {
+    // Redeclare attributes to allow customization
+    String value() default Bean.DEFAULT;
+
+    ScopeType scope() default ScopeType.SINGLETON;
+}
+```
+
+**2. Use your stereotype:**
+
+You can now use `@Service` instead of `@Bean` for a more descriptive component model.
+
+```java
+
+@Service("mySpecialService")
+public class MySpecialService {
+    // ...
+}
+```
+
+This bean will be registered with the name `mySpecialService` and a singleton scope.
+
 ### Lifecycle Callbacks
 
 You can hook into the application startup lifecycle using `@BeforeContextLoad` and `@AfterContextLoad`. This is useful
@@ -243,14 +248,10 @@ Methods are executed in order based on the `order()` property (lower values run 
 #### `@BeforeContextLoad`
 
 These methods are executed **before** the IoC container is created. They are ideal for tasks that need to happen before
-any beans are defined, such as setting system properties or loading external configuration.
-
-- The method can have 0 parameters or 1 parameter of type `io.github.classgraph.ScanResult`.
-- The class containing the method does not need to be a bean.
+any beans are defined. The method can have 0 parameters or 1 parameter of type `io.github.classgraph.ScanResult`.
 
 ```java
 public class SystemInitializer {
-
     @BeforeContextLoad(order = 1)
     public void setupSystemProperties(ScanResult scanResult) {
         System.out.println("Found " + scanResult.getAllClasses().size() + " classes during scan.");
@@ -261,22 +262,15 @@ public class SystemInitializer {
 
 #### `@AfterContextLoad`
 
-These methods are executed **after** the IoC container has been created and all bean definitions have been scanned. They
-are perfect for logic that needs access to the fully configured context or other beans.
-
-- The class containing the method does not need to be a bean.
-- The method's parameters are **injected with dependencies** from the context. You can ask for any bean, the `Context`
-  itself, or the `ScanResult`.
+These methods are executed **after** the IoC container has been created and all bean definitions have been scanned. The
+method's parameters are **injected with dependencies** from the context. You can ask for any bean, the `Context` itself,
+or the `ScanResult`.
 
 ```java
 public class AppInitializer {
-
     @AfterContextLoad(order = 10)
     public void onStartup(MyService myService, Context context) {
-        System.out.println("Application context has been loaded.");
-        System.out.println("Found " + context.getBeanDefinitions().size() + " bean definitions.");
-
-        // Start a background task using a bean
+        System.out.println("Application context has been loaded with " + context.getBeanDefinitions().size() + " beans.");
         myService.startBackgroundTask();
     }
 }
@@ -291,12 +285,12 @@ public class AppInitializer {
     - `@BeforeContextLoad` callbacks are found and executed immediately.
     - The `Context` object is created.
     - The `ScanResult` is registered as a bean.
-    - Bean definitions (`@Bean`) and `@AfterContextLoad` callbacks are registered in the context.
+    - Bean definitions (`@Bean` or stereotypes) and `@AfterContextLoad` callbacks are registered in the context.
     - `@AfterContextLoad` callbacks are executed, with their dependencies injected.
 2. **`ApplicationRunner.loadBean(MyClass.class)`:**
     - The framework finds the bean's definition.
     - If the bean is a singleton and already exists in the cache, it's returned.
-    - Otherwise, it recursively resolves, loads, and creates any dependencies needed by the bean's constructor.
+    - Otherwise, it recursively resolves, loads, and creates any dependencies needed.
     - It creates the final instance.
     - If the bean is a singleton, the instance is cached for all future requests.
     - If the bean is a prototype, a new instance is created and returned without caching.
