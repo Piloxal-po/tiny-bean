@@ -4,8 +4,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class ContextService {
 
-    private static volatile Context instance;
     private static final Object lock = new Object();
+    private static volatile Context instance;
 
     public static Context createContexte(Class<?> application, String[] packages) {
         if (instance == null) {
@@ -21,6 +21,16 @@ public class ContextService {
             }
         }
         return instance;
+    }
+
+    static void deleteContexte() {
+        if (instance != null) {
+            synchronized (lock) {
+                if (instance != null) {
+                    instance = null;
+                }
+            }
+        }
     }
 
     public static Context getContext() {

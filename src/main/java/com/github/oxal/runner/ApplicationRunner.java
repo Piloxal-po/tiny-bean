@@ -13,6 +13,9 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.function.BiFunction;
 
 public class ApplicationRunner {
@@ -24,22 +27,15 @@ public class ApplicationRunner {
 
         Application configuration = application.getAnnotation(Application.class);
 
-        String[] packages = configuration.packages();
-        if (configuration.packages().length == 0) {
-            packages = new String[]{application.getPackageName()};
-        }
+        Set<String> packagesToScan = new HashSet<>();
+        packagesToScan.add(application.getPackageName());
+        packagesToScan.addAll(Arrays.asList(configuration.packages()));
+
+        String[] packages = packagesToScan.toArray(new String[0]);
 
         Context context = ContextService.createContexte(application, packages);
         ApplicationScanner.scanBeans(packages);
         System.out.println("Bean definitions found: " + context.getBeanDefinitions().size());
-    }
-
-    public static void cleanContext() {
-        Context context = ContextService.getContext();
-        if (context != null) {
-            context.getSingletonInstances().clear();
-            context.getBeanDefinitions().clear();
-        }
     }
 
     public static <T> T loadBean(Class<T> beanClass) {
@@ -59,7 +55,7 @@ public class ApplicationRunner {
         Executable executable = context.getBeanDefinitions().get(key);
         Bean beanAnnotation = executable.getAnnotation(Bean.class);
         if (beanAnnotation == null) { // Should not happen if scanner is correct
-             beanAnnotation = executable.getDeclaringClass().getAnnotation(Bean.class);
+            beanAnnotation = executable.getDeclaringClass().getAnnotation(Bean.class);
         }
 
         if (beanAnnotation.scope() == ScopeType.PROTOTYPE) {
