@@ -8,6 +8,8 @@ import com.github.oxal.context.Context;
 import com.github.oxal.context.ContextService;
 import com.github.oxal.object.KeyDefinition;
 import com.github.oxal.scanner.ApplicationScanner;
+import io.github.classgraph.ClassGraph;
+import io.github.classgraph.ScanResult;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
@@ -15,6 +17,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
 
@@ -30,12 +33,56 @@ public class ApplicationRunner {
         Set<String> packagesToScan = new HashSet<>();
         packagesToScan.add(application.getPackageName());
         packagesToScan.addAll(Arrays.asList(configuration.packages()));
-
         String[] packages = packagesToScan.toArray(new String[0]);
 
-        Context context = ContextService.createContexte(application, packages);
-        ApplicationScanner.scanBeans(packages);
-        System.out.println("Bean definitions found: " + context.getBeanDefinitions().size());
+        // --- 1. Perform a single scan of the classpath ---
+        try (ScanResult scanResult = new ClassGraph().enableAllInfo().acceptPackages(packages).scan()) {
+
+            // --- 2. Execute @BeforeContextLoad callbacks ---
+            ApplicationScanner.executeBeforeCallbacks(scanResult);
+
+            // --- 3. Create the application context ---
+            Context context = ContextService.createContexte(application, packages);
+
+            // --- 4. Manually register ScanResult as a Singleton Bean ---
+            context.getSingletonInstances().put(KeyDefinition.builder().type(ScanResult.class).build(), scanResult);
+
+            // --- 5. Populate the context with beans and @After callbacks ---
+            ApplicationScanner.populateContextFromScan(scanResult);
+            System.out.println("Bean definitions found: " + context.getBeanDefinitions().size());
+
+            // --- 6. Execute @AfterContextLoad callbacks ---
+            executeAfterCallbacks(context);
+        }
+    }
+
+    private static void executeAfterCallbacks(Context context) {
+        for (Method callback : context.getAfterContextLoadCallbacks()) {
+            try {
+                callback.setAccessible(true);
+
+                // The container class does not need to be a bean. We create a new instance for it.
+                Object instance = callback.getDeclaringClass().getDeclaredConstructor().newInstance();
+
+                // Resolve parameters for the callback method using the DI container
+                Object[] args = new Object[callback.getParameterCount()];
+                for (int i = 0; i < callback.getParameterCount(); i++) {
+                    Class<?> paramType = callback.getParameterTypes()[i];
+                    // Special case: inject the context itself
+                    if (paramType.equals(Context.class)) {
+                        args[i] = context;
+                    } else {
+                        Qualifier qualifier = callback.getParameters()[i].getAnnotation(Qualifier.class);
+                        String qualifierName = (qualifier != null) ? qualifier.value() : null;
+                        args[i] = loadBean(paramType, qualifierName);
+                    }
+                }
+                callback.invoke(instance, args);
+
+            } catch (Exception e) {
+                throw new RuntimeException("Error executing @AfterContextLoad callback: " + callback.getName(), e);
+            }
+        }
     }
 
     public static <T> T loadBean(Class<T> beanClass) {
@@ -49,8 +96,20 @@ public class ApplicationRunner {
         }
 
         Context context = ContextService.getContext();
-        KeyDefinition key = context.getBeanDefinitionKey(beanClass, beanName)
-                .orElseThrow(() -> new RuntimeException("No bean definition found for class: " + beanClass.getName() + " and name: " + beanName));
+
+        // Special case for manually registered singletons like ScanResult and Context
+        if (beanClass.equals(Context.class)) {
+            return (T) context;
+        }
+        if (context.getBeanDefinitionKey(beanClass, beanName).isEmpty()) {
+            return (T) context.getSingletonInstances().entrySet().stream()
+                    .filter(entry -> entry.getKey().sameType(beanClass) && (beanName == null || entry.getKey().sameName(beanName)))
+                    .map(Map.Entry::getValue)
+                    .findFirst()
+                    .orElseThrow(() -> new RuntimeException("No bean or manual singleton found for class: " + beanClass.getName()));
+        }
+
+        KeyDefinition key = context.getBeanDefinitionKey(beanClass, beanName).get();
 
         Executable executable = context.getBeanDefinitions().get(key);
         Bean beanAnnotation = executable.getAnnotation(Bean.class);

@@ -1,5 +1,6 @@
 package com.github.oxal.context;
 
+import java.util.ArrayList;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class ContextService {
@@ -16,6 +17,8 @@ public class ContextService {
                             .packages(packages)
                             .singletonInstances(new ConcurrentHashMap<>())
                             .beanDefinitions(new ConcurrentHashMap<>())
+                            .beforeContextLoadCallbacks(new ArrayList<>())
+                            .afterContextLoadCallbacks(new ArrayList<>())
                             .build();
                 }
             }

@@ -7,6 +7,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.lang.reflect.Executable;
+import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -20,6 +21,10 @@ public class Context {
     private final String[] packages;
     private Map<KeyDefinition, Executable> beanDefinitions;
     private Map<KeyDefinition, Object> singletonInstances;
+
+    // Lists to store callback methods
+    private List<Method> beforeContextLoadCallbacks;
+    private List<Method> afterContextLoadCallbacks;
 
     public Optional<KeyDefinition> getBeanDefinitionKey(Class<?> type, String name) {
         List<KeyDefinition> keys = beanDefinitions
