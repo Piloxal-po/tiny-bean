@@ -98,7 +98,7 @@ public class ApplicationRunner {
 
         Context context = ContextService.getContext();
 
-        // Special case for manually registered singletons like ScanResult and Context
+        // Special case for Context
         if (beanClass.equals(Context.class)) {
             return (T) context;
         }
@@ -147,7 +147,7 @@ public class ApplicationRunner {
             }
         }
 
-        return ScopeType.SINGLETON; // Default scope
+        return ScopeType.SINGLETON;
     }
 
     private static <T> T createBeanInstance(Executable executable) {

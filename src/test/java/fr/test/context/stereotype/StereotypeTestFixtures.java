@@ -16,7 +16,7 @@ public class StereotypeTestFixtures {
      */
     @Retention(RetentionPolicy.RUNTIME)
     @Target(ElementType.TYPE)
-    @Bean // Meta-annotation
+    @Bean
     public @interface TestService {
         String value() default Bean.DEFAULT;
 

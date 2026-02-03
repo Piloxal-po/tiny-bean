@@ -22,7 +22,6 @@ public class Context {
     private Map<KeyDefinition, Executable> beanDefinitions;
     private Map<KeyDefinition, Object> singletonInstances;
 
-    // Lists to store callback methods
     private List<Method> beforeContextLoadCallbacks;
     private List<Method> afterContextLoadCallbacks;
 
