@@ -58,7 +58,7 @@ desired [release tag](https://github.com/Piloxal-po/tiny-bean/tags).
 ```xml
 
 <dependency>
-    <groupId>com.github.oxal</groupId>
+    <groupId>com.github.Piloxal-po</groupId>
     <artifactId>tiny-bean</artifactId>
     <version>1.2.0</version>
 </dependency>
