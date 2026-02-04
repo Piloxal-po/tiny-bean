@@ -3,6 +3,7 @@ package com.github.oxal.context;
 import com.github.oxal.object.KeyDefinition;
 import lombok.Builder;
 import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 
 import java.lang.reflect.Executable;
 import java.lang.reflect.Method;
@@ -12,6 +13,7 @@ import java.util.Set;
 
 @Getter
 @Builder
+@Slf4j
 public class Context {
     private final Class<?> application;
     private final String[] packages;
@@ -22,6 +24,7 @@ public class Context {
     private final List<Method> afterContextLoadCallbacks;
 
     public void addBeanDefinition(KeyDefinition keyDefinition, Executable executable) {
+        log.debug("Adding bean definition: {}", keyDefinition);
         if (keyDefinition.getName() != null && beanDefinitions.keySet().stream().anyMatch(k -> k.sameName(keyDefinition.getName()))) {
             throw new RuntimeException("Duplicate bean name: " + keyDefinition.getName());
         }
@@ -32,10 +35,12 @@ public class Context {
     }
 
     public void addAfterContextLoadCallback(Method callback) {
+        log.debug("Adding after-context-load callback: {}", callback);
         afterContextLoadCallbacks.add(callback);
     }
 
     public void registerSingleton(KeyDefinition key, Object instance) {
+        log.debug("Registering singleton: {}", key);
         singletonInstances.put(key, instance);
     }
 
@@ -56,10 +61,12 @@ public class Context {
     }
 
     public void markAsInCreation(KeyDefinition key) {
+        log.debug("Marking bean as in creation: {}", key);
         beansInCreation.add(key);
     }
 
     public void unmarkAsInCreation(KeyDefinition key) {
+        log.debug("Unmarking bean as in creation: {}", key);
         beansInCreation.remove(key);
     }
 

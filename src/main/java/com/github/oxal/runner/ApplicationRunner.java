@@ -8,11 +8,14 @@ import com.github.oxal.factory.BeanFactory;
 import com.github.oxal.initializer.ContextInitializer;
 import com.github.oxal.object.KeyDefinition;
 import com.github.oxal.resolver.BeanDefinitionResolver;
+import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Method;
 
+@Slf4j
 public class ApplicationRunner {
 
     private static final BeanFactory beanFactory = new BeanFactory();
@@ -29,40 +32,50 @@ public class ApplicationRunner {
 
     @SuppressWarnings("unchecked")
     public static <T> T loadBean(Class<T> beanClass, String beanName) {
-        if (beanClass == null) {
-            throw new IllegalArgumentException("beanClass cannot be null");
-        }
+        log.trace("Entering loadBean(beanClass={}, beanName={})", beanClass.getName(), beanName);
 
         Context context = ContextService.getContext();
         if (beanClass.equals(Context.class)) {
+            log.trace("Returning context instance directly.");
             return (T) context;
         }
 
         KeyDefinition key = beanDefinitionResolver.resolve(beanClass, beanName, context);
+        MDC.put("bean", key.toString());
 
-        if (context.isBeanInCreation(key)) {
-            throw new RuntimeException("Circular dependency detected for bean: " + key);
-        }
-
-        Executable executable = context.getBeanDefinitions().get(key);
-        ScopeType scope = findBeanScope(executable);
-
-        if (scope == ScopeType.PROTOTYPE) {
-            return beanFactory.createBeanInstance(executable);
-        }
-
-        // Handle singletons manually
-        if (context.isSingletonRegistered(key)) {
-            return (T) context.getSingleton(key);
-        }
-
-        context.markAsInCreation(key);
         try {
-            T beanInstance = beanFactory.createBeanInstance(executable);
-            context.registerSingleton(key, beanInstance);
-            return beanInstance;
+            if (context.isBeanInCreation(key)) {
+                log.error("Circular dependency detected for bean {}", key);
+                throw new RuntimeException("Circular dependency detected for bean: " + key);
+            }
+
+            Executable executable = context.getBeanDefinitions().get(key);
+            ScopeType scope = findBeanScope(executable);
+            log.trace("Resolved bean [{}] with scope {}", key, scope);
+
+            if (scope == ScopeType.PROTOTYPE) {
+                log.debug("Creating new PROTOTYPE instance for bean [{}]", key);
+                return beanFactory.createBeanInstance(executable);
+            }
+
+            // Handle singletons
+            if (context.isSingletonRegistered(key)) {
+                log.debug("Returning cached SINGLETON instance for bean [{}]", key);
+                return (T) context.getSingleton(key);
+            }
+
+            log.debug("Creating new SINGLETON instance for bean [{}]", key);
+            context.markAsInCreation(key);
+            try {
+                T beanInstance = beanFactory.createBeanInstance(executable);
+                context.registerSingleton(key, beanInstance);
+                log.debug("Successfully created and cached singleton bean [{}]", key);
+                return beanInstance;
+            } finally {
+                context.unmarkAsInCreation(key);
+            }
         } finally {
-            context.unmarkAsInCreation(key);
+            MDC.remove("bean");
         }
     }
 

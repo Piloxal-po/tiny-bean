@@ -8,6 +8,7 @@ import com.github.oxal.context.ContextService;
 import com.github.oxal.object.KeyDefinition;
 import io.github.classgraph.MethodInfo;
 import io.github.classgraph.ScanResult;
+import lombok.extern.slf4j.Slf4j;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
@@ -15,6 +16,7 @@ import java.lang.reflect.Modifier;
 import java.util.Comparator;
 import java.util.List;
 
+@Slf4j
 public class ApplicationScanner {
 
     public static void executeBeforeCallbacks(ScanResult scanResult) {
@@ -26,7 +28,10 @@ public class ApplicationScanner {
                 .sorted(Comparator.comparingInt(m -> m.getAnnotation(BeforeContextLoad.class).order()))
                 .toList();
 
+        log.debug("Found {} @BeforeContextLoad callbacks.", beforeCallbacks.size());
+
         for (Method callback : beforeCallbacks) {
+            log.trace("Executing @BeforeContextLoad callback: {}", callback);
             try {
                 callback.setAccessible(true);
                 Object instance = callback.getDeclaringClass().getDeclaredConstructor().newInstance();
@@ -36,6 +41,7 @@ public class ApplicationScanner {
                     callback.invoke(instance);
                 }
             } catch (Exception e) {
+                log.error("Error executing @BeforeContextLoad callback: {}", callback.getName(), e);
                 throw new RuntimeException("Error executing @BeforeContextLoad callback: " + callback.getName(), e);
             }
         }
@@ -43,7 +49,9 @@ public class ApplicationScanner {
 
     public static void populateContextFromScan(ScanResult scanResult) {
         Context context = ContextService.getContext();
+        log.debug("Scanning for bean definitions...");
         scanBeans(scanResult, context);
+        log.debug("Scanning for @AfterContextLoad callbacks...");
         scanAfterCallbacks(scanResult, context);
     }
 
@@ -56,6 +64,7 @@ public class ApplicationScanner {
             }
 
             if (clazz.getConstructors().length > 1) {
+                log.error("Class {} has more than one constructor, which is not supported for auto-detection.", clazz.getSimpleName());
                 throw new RuntimeException("More than one constructor found for " + clazz.getSimpleName());
             }
             KeyDefinition key = KeyDefinition.builder().type(clazz).build();
@@ -71,11 +80,13 @@ public class ApplicationScanner {
                     } catch (NoSuchMethodException e) {
                         // Annotation doesn't have a 'value' attribute, ignore.
                     } catch (Exception e) {
+                        log.error("Error reading bean properties from annotation {} on class {}", annotation, clazz.getName(), e);
                         throw new RuntimeException("Error reading bean properties", e);
                     }
                     break;
                 }
             }
+            log.debug("Found class-based bean definition: {}", key);
             context.addBeanDefinition(key, clazz.getConstructors()[0]);
         });
 
@@ -95,11 +106,13 @@ public class ApplicationScanner {
                             } catch (NoSuchMethodException e) {
                                 // Annotation doesn't have a 'value' attribute, ignore.
                             } catch (Exception e) {
+                                log.error("Error reading bean properties from annotation {} on method {}", annotation, method.getName(), e);
                                 throw new RuntimeException("Error reading bean properties", e);
                             }
                             break;
                         }
                     }
+                    log.debug("Found method-based bean definition: {}", key);
                     context.addBeanDefinition(key, method);
                 })
         );
@@ -112,20 +125,26 @@ public class ApplicationScanner {
                 .map(MethodInfo::loadClassAndGetMethod)
                 .peek(ApplicationScanner::validateAfterCallback)
                 .sorted(Comparator.comparingInt(m -> m.getAnnotation(AfterContextLoad.class).order()))
-                .forEach(context::addAfterContextLoadCallback);
+                .forEach(callback -> {
+                    log.debug("Found @AfterContextLoad callback: {}", callback);
+                    context.addAfterContextLoadCallback(callback);
+                });
     }
 
     private static void validateBeforeCallback(Method method) {
         if (!Modifier.isPublic(method.getModifiers())) {
+            log.error("@BeforeContextLoad method must be public: {}", method);
             throw new RuntimeException("@BeforeContextLoad method must be public: " + method.getName());
         }
         if (method.getParameterCount() > 1 || (method.getParameterCount() == 1 && !method.getParameterTypes()[0].equals(ScanResult.class))) {
+            log.error("@BeforeContextLoad method must have 0 or 1 parameter of type ScanResult: {}", method);
             throw new RuntimeException("@BeforeContextLoad method must have 0 or 1 parameter of type ScanResult: " + method.getName());
         }
     }
 
     private static void validateAfterCallback(Method method) {
         if (!Modifier.isPublic(method.getModifiers())) {
+            log.error("@AfterContextLoad method must be public: {}", method);
             throw new RuntimeException("@AfterContextLoad method must be public: " + method.getName());
         }
     }
