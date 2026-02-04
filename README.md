@@ -18,6 +18,7 @@ It is designed to be easy to understand and lightweight, with minimal, carefully
   `@Bean`.
 - **Lifecycle Callbacks:** Hook into the application startup process with `@BeforeContextLoad` and `@AfterContextLoad`.
 - **Classpath Scanning:** Automatically discovers and registers your beans from specified packages.
+- **Extensible Scanning:** Use the `ServiceLoader` pattern to add more packages to the scan from separate modules.
 - **Dependency Injection:** Supports constructor-based dependency injection.
 - **Bean Scopes:** Provides support for `SINGLETON` (default) and `PROTOTYPE` scopes.
 - **Thread-Safe:** The context and bean loading mechanism are fully thread-safe, ready for concurrent applications.
@@ -52,7 +53,7 @@ For Maven, add this to your `pom.xml`:
 
 ### 2. Add the Tiny-Bean Dependency
 
-Once the repository is added, you can include Tiny-Bean in your project. Replace `1.2.0` with the
+Once the repository is added, you can include Tiny-Bean in your project. Replace `1.3.0` with the
 desired [release tag](https://github.com/Piloxal-po/tiny-bean/tags).
 
 ```xml
@@ -60,7 +61,7 @@ desired [release tag](https://github.com/Piloxal-po/tiny-bean/tags).
 <dependency>
     <groupId>com.github.Piloxal-po</groupId>
     <artifactId>tiny-bean</artifactId>
-    <version>1.2.0</version>
+    <version>1.3.0</version>
 </dependency>
 ```
 
@@ -276,12 +277,62 @@ public class AppInitializer {
 }
 ```
 
+### Extending the Classpath Scan with ServiceLoader
+
+For modular applications, you may need to scan packages from different modules or libraries. Tiny-Bean supports this
+using Java's built-in `ServiceLoader` mechanism.
+
+By creating your own `PackageProvider`, you can instruct the `ApplicationRunner` to include additional packages in its
+classpath scan.
+
+**1. Implement the `PackageProvider` Interface:**
+
+Create a class that implements `com.github.oxal.provider.PackageProvider`.
+
+```java
+package com.mycompany.externalmodule;
+
+import com.github.oxal.provider.PackageProvider;
+
+public class MyModulePackageProvider implements PackageProvider {
+    @Override
+    public String[] getPackages() {
+        // Return the list of packages to be scanned in this module
+        return new String[]{"com.mycompany.externalmodule.beans"};
+    }
+}
+```
+
+**2. Register the Implementation:**
+
+Create a service provider configuration file in your module's `resources` directory.
+
+**File Path:** `src/main/resources/META-INF/services/com.github.oxal.provider.PackageProvider`
+
+**File Content:**
+
+```
+# Fully qualified name of your implementation
+com.mycompany.externalmodule.MyModulePackageProvider
+```
+
+**3. Let Tiny-Bean Do the Rest:**
+
+When `ApplicationRunner.loadContext()` is called, it will automatically:
+- Discover all `PackageProvider` implementations registered on the classpath.
+- Add the packages they provide to the list of packages to be scanned.
+- Find and register any beans (e.g., `@Bean`, `@Service`) defined in those packages.
+
+This allows you to create decoupled modules that automatically integrate themselves into the main application's IoC
+container.
+
 ---
 
 ## How It Works
 
 1. **`ApplicationRunner.loadContext(Main.class)`:**
-    - A single classpath scan is performed.
+    - It gathers packages to scan from `@Application`, and from all `PackageProvider` services.
+    - A single classpath scan is performed on the combined list of packages.
     - `@BeforeContextLoad` callbacks are found and executed immediately.
     - The `Context` object is created.
     - The `ScanResult` is registered as a bean.

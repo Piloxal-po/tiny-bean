@@ -7,6 +7,7 @@ import fr.test.context.base.Bean1;
 import fr.test.context.base.Bean2;
 import fr.test.context.callbacks.CallbackTestFixtures;
 import fr.test.context.circular.BeanA;
+import fr.test.context.external.ExternalBean;
 import fr.test.context.missing.BeanWithMissingDependency;
 import fr.test.context.scope.PrototypeBean;
 import fr.test.context.stereotype.StereotypeTestFixtures;
@@ -35,7 +36,7 @@ class ApplicationRunnerTest {
     @Test
     void stereotype_shouldDiscoverBeans() {
         ApplicationRunner.loadContext(StereotypeApplication.class);
-        assertEquals(3, ContextService.getContext().getBeanDefinitions().size(), "Should discover all 3 stereotype-related beans.");
+        assertEquals(4, ContextService.getContext().getBeanDefinitions().size(), "Should discover all 3 stereotype-related beans.");
     }
 
     @Test
@@ -84,7 +85,7 @@ class ApplicationRunnerTest {
     @Test
     void loadContext_shouldCountBeanDefinitions() {
         ApplicationRunner.loadContext(ApplicationMain.class);
-        assertEquals(5, ContextService.getContext().getBeanDefinitions().size());
+        assertEquals(6, ContextService.getContext().getBeanDefinitions().size());
     }
 
     // --- Stereotype Tests ---
@@ -142,6 +143,13 @@ class ApplicationRunnerTest {
         assertThrows(RuntimeException.class, () -> ApplicationRunner.loadBean(String.class));
     }
 
+    @Test
+    void serviceLoader_shouldLoadExternalBeans() {
+        ApplicationRunner.loadContext(ServiceLoaderApplication.class);
+        ExternalBean externalBean = ApplicationRunner.loadBean(ExternalBean.class);
+        assertNotNull(externalBean, "Bean from ServiceLoader-provided package should be loaded.");
+    }
+
 
     // --- Core Functionality Tests ---
 
@@ -173,5 +181,9 @@ class ApplicationRunnerTest {
 
     @Application(packages = "fr.test.context.stereotype")
     private static class StereotypeApplication {
+    }
+
+    @Application
+    private static class ServiceLoaderApplication {
     }
 }

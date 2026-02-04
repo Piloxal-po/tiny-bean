@@ -30,7 +30,7 @@ class ApplicationScannerTest {
         // Then
         Map<KeyDefinition, Executable> beanDefinitions = ContextService.getContext().getBeanDefinitions();
         assertNotNull(beanDefinitions, "Bean definitions map in context should not be null.");
-        assertEquals(5, beanDefinitions.size(), "Context should contain 5 bean definitions in total.");
+        assertEquals(6, beanDefinitions.size(), "Context should contain 5 bean definitions in total.");
 
         // Check for a class bean definition
         assertTrue(beanDefinitions.keySet().stream()
