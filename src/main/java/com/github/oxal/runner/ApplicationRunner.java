@@ -3,6 +3,7 @@ package com.github.oxal.runner;
 import com.github.oxal.annotation.*;
 import com.github.oxal.context.Context;
 import com.github.oxal.context.ContextService;
+import com.github.oxal.factory.BeanFactory;
 import com.github.oxal.object.KeyDefinition;
 import com.github.oxal.provider.PackageProvider;
 import com.github.oxal.scanner.ApplicationScanner;
@@ -12,13 +13,13 @@ import io.github.classgraph.ScanResult;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.*;
-import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
 public class ApplicationRunner {
+
+    private static final BeanFactory beanFactory = new BeanFactory();
 
     public static void loadContext(Class<?> application) {
         if (!application.isAnnotationPresent(Application.class)) {
@@ -106,7 +107,7 @@ public class ApplicationRunner {
         ScopeType scope = findBeanScope(executable);
 
         if (scope == ScopeType.PROTOTYPE) {
-            return createBeanInstance(executable);
+            return beanFactory.createBeanInstance(executable);
         }
 
         // Handle singletons manually
@@ -116,7 +117,7 @@ public class ApplicationRunner {
 
         context.getBeansInCreation().add(key);
         try {
-            T beanInstance = createBeanInstance(executable);
+            T beanInstance = beanFactory.createBeanInstance(executable);
             context.getSingletonInstances().put(key, beanInstance);
             return beanInstance;
         } finally {
@@ -130,7 +131,7 @@ public class ApplicationRunner {
                 .collect(Collectors.toList());
 
         if (beanName != null) {
-            candidates = candidates.stream().filter(key -> beanName.equals(key.getName())).toList();
+            candidates = candidates.stream().filter(key -> beanName.equals(key.getName())).collect(Collectors.toList());
             if (candidates.size() == 1) {
                 return candidates.getFirst();
             }
@@ -187,65 +188,5 @@ public class ApplicationRunner {
             }
         }
         return ScopeType.SINGLETON;
-    }
-
-    private static <T> T createBeanInstance(Executable executable) {
-        if (executable instanceof Method method) {
-            return loadBeanByMethod(method);
-        } else if (executable instanceof Constructor<?> constructor) {
-            return (T) loadBeanByConstructor(constructor);
-        }
-        throw new IllegalStateException("Unsupported executable type: " + executable.getClass().getName());
-    }
-
-    private static <T> T processLoad(Executable executable, BiFunction<Object, Object[], T> invocation) {
-        Class<?> classContainer = executable.getDeclaringClass();
-        Object instance = null;
-
-        if (executable instanceof Method) {
-            try {
-                Constructor<?> c = classContainer.getDeclaredConstructor();
-                c.setAccessible(true);
-                instance = c.newInstance();
-            } catch (NoSuchMethodException e) {
-                throw new RuntimeException(classContainer.getSimpleName() + " must have a no-arg constructor to host @Bean methods.", e);
-            } catch (Exception e) {
-                throw new RuntimeException("Failed to instantiate configuration class " + classContainer.getSimpleName(), e);
-            }
-        }
-
-        try {
-            Object[] args = new Object[executable.getParameterCount()];
-            for (int i = 0; i < executable.getParameterCount(); i++) {
-                Qualifier qualifier = executable.getParameters()[i].getAnnotation(Qualifier.class);
-                String qualifierName = (qualifier != null) ? qualifier.value() : null;
-                args[i] = loadBean(executable.getParameterTypes()[i], qualifierName);
-            }
-            return invocation.apply(instance, args);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to resolve dependencies for " + executable.getDeclaringClass().getName(), e);
-        }
-    }
-
-    private static <T> T loadBeanByMethod(Method method) {
-        return processLoad(method, (instance, args) -> {
-            try {
-                method.setAccessible(true);
-                return (T) method.invoke(instance, args);
-            } catch (IllegalAccessException | InvocationTargetException e) {
-                throw new RuntimeException("Failed to invoke @Bean method: " + method.getName(), e);
-            }
-        });
-    }
-
-    private static <T> T loadBeanByConstructor(Constructor<T> constructor) {
-        return processLoad(constructor, (instance, args) -> {
-            try {
-                constructor.setAccessible(true);
-                return constructor.newInstance(args);
-            } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
-                throw new RuntimeException("Failed to invoke @Bean constructor: " + constructor.getName(), e);
-            }
-        });
     }
 }
