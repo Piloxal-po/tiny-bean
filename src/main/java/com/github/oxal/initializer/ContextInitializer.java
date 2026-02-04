@@ -46,7 +46,7 @@ public class ContextInitializer {
             Context context = ContextService.createContexte(application, packages);
 
             // --- Manually register ScanResult as a Singleton Bean ---
-            context.getSingletonInstances().put(KeyDefinition.builder().type(ScanResult.class).build(), scanResult);
+            context.registerSingleton(KeyDefinition.builder().type(ScanResult.class).build(), scanResult);
 
             // --- Populate the context with beans and @After callbacks ---
             ApplicationScanner.populateContextFromScan(scanResult);

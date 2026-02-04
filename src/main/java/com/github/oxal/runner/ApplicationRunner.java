@@ -40,7 +40,7 @@ public class ApplicationRunner {
 
         KeyDefinition key = beanDefinitionResolver.resolve(beanClass, beanName, context);
 
-        if (context.getBeansInCreation().contains(key)) {
+        if (context.isBeanInCreation(key)) {
             throw new RuntimeException("Circular dependency detected for bean: " + key);
         }
 
@@ -52,17 +52,17 @@ public class ApplicationRunner {
         }
 
         // Handle singletons manually
-        if (context.getSingletonInstances().containsKey(key)) {
-            return (T) context.getSingletonInstances().get(key);
+        if (context.isSingletonRegistered(key)) {
+            return (T) context.getSingleton(key);
         }
 
-        context.getBeansInCreation().add(key);
+        context.markAsInCreation(key);
         try {
             T beanInstance = beanFactory.createBeanInstance(executable);
-            context.getSingletonInstances().put(key, beanInstance);
+            context.registerSingleton(key, beanInstance);
             return beanInstance;
         } finally {
-            context.getBeansInCreation().remove(key);
+            context.unmarkAsInCreation(key);
         }
     }
 

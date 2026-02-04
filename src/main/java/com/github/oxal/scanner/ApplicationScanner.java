@@ -14,7 +14,6 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.Comparator;
 import java.util.List;
-import java.util.stream.Collectors;
 
 public class ApplicationScanner {
 
@@ -107,14 +106,13 @@ public class ApplicationScanner {
     }
 
     private static void scanAfterCallbacks(ScanResult scanResult, Context context) {
-        List<Method> afterCallbacks = scanResult.getClassesWithMethodAnnotation(AfterContextLoad.class.getName())
+        scanResult.getClassesWithMethodAnnotation(AfterContextLoad.class.getName())
                 .stream()
                 .flatMap(ci -> ci.getMethodInfo().filter(mi -> mi.hasAnnotation(AfterContextLoad.class.getName())).stream())
                 .map(MethodInfo::loadClassAndGetMethod)
                 .peek(ApplicationScanner::validateAfterCallback)
                 .sorted(Comparator.comparingInt(m -> m.getAnnotation(AfterContextLoad.class).order()))
-                .collect(Collectors.toList());
-        context.setAfterContextLoadCallbacks(afterCallbacks);
+                .forEach(context::addAfterContextLoadCallback);
     }
 
     private static void validateBeforeCallback(Method method) {

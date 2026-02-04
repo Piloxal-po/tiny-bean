@@ -38,7 +38,7 @@ class ApplicationRunnerTest {
     @Test
     void stereotype_shouldDiscoverBeans() {
         ApplicationRunner.loadContext(StereotypeApplication.class);
-        assertEquals(4, ContextService.getContext().getBeanDefinitions().size(), "Should discover all 3 stereotype-related beans.");
+        assertEquals(4, ContextService.getContext().getBeanDefinitionCount(), "Should discover all 3 stereotype-related beans.");
     }
 
     @Test
@@ -87,7 +87,7 @@ class ApplicationRunnerTest {
     @Test
     void loadContext_shouldCountBeanDefinitions() {
         ApplicationRunner.loadContext(ApplicationMain.class);
-        assertEquals(6, ContextService.getContext().getBeanDefinitions().size());
+        assertEquals(6, ContextService.getContext().getBeanDefinitionCount());
     }
 
     // --- Stereotype Tests ---
@@ -95,16 +95,16 @@ class ApplicationRunnerTest {
     @Test
     void loadBean_shouldCreateSingletonInstances() {
         ApplicationRunner.loadContext(ApplicationMain.class);
-        assertEquals(1, ContextService.getContext().getSingletonInstances().size(), "Only ScanResult should be present initially.");
+        assertEquals(1, ContextService.getContext().getSingletonInstanceCount(), "Only ScanResult should be present initially.");
 
         ApplicationRunner.loadBean(Bean1.class);
-        assertEquals(3, ContextService.getContext().getSingletonInstances().size());
+        assertEquals(3, ContextService.getContext().getSingletonInstanceCount());
 
         ApplicationRunner.loadBean(Bean2.class);
-        assertEquals(5, ContextService.getContext().getSingletonInstances().size());
+        assertEquals(5, ContextService.getContext().getSingletonInstanceCount());
 
         ApplicationRunner.loadBean(String.class, "test");
-        assertEquals(6, ContextService.getContext().getSingletonInstances().size());
+        assertEquals(6, ContextService.getContext().getSingletonInstanceCount());
     }
 
     @Test
@@ -121,7 +121,7 @@ class ApplicationRunnerTest {
         PrototypeBean instance1 = ApplicationRunner.loadBean(PrototypeBean.class);
         PrototypeBean instance2 = ApplicationRunner.loadBean(PrototypeBean.class);
         assertNotSame(instance1, instance2);
-        assertEquals(1, ContextService.getContext().getSingletonInstances().size());
+        assertEquals(1, ContextService.getContext().getSingletonInstanceCount());
     }
 
     @Test
