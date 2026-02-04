@@ -1,25 +1,31 @@
 package com.github.oxal.runner;
 
-import com.github.oxal.annotation.*;
+import com.github.oxal.annotation.Application;
+import com.github.oxal.annotation.Bean;
+import com.github.oxal.annotation.Qualifier;
+import com.github.oxal.annotation.ScopeType;
 import com.github.oxal.context.Context;
 import com.github.oxal.context.ContextService;
 import com.github.oxal.factory.BeanFactory;
 import com.github.oxal.object.KeyDefinition;
 import com.github.oxal.provider.PackageProvider;
+import com.github.oxal.resolver.BeanDefinitionResolver;
 import com.github.oxal.scanner.ApplicationScanner;
 import io.github.classgraph.ClassGraph;
 import io.github.classgraph.ScanResult;
 
 import java.lang.annotation.Annotation;
-import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Method;
-import java.util.*;
-import java.util.stream.Collectors;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.ServiceLoader;
+import java.util.Set;
 
 public class ApplicationRunner {
 
     private static final BeanFactory beanFactory = new BeanFactory();
+    private static final BeanDefinitionResolver beanDefinitionResolver = new BeanDefinitionResolver();
 
     public static void loadContext(Class<?> application) {
         if (!application.isAnnotationPresent(Application.class)) {
@@ -97,7 +103,7 @@ public class ApplicationRunner {
             return (T) context;
         }
 
-        KeyDefinition key = resolveBeanDefinitionKey(beanClass, beanName, context);
+        KeyDefinition key = beanDefinitionResolver.resolve(beanClass, beanName, context);
 
         if (context.getBeansInCreation().contains(key)) {
             throw new RuntimeException("Circular dependency detected for bean: " + key);
@@ -125,49 +131,6 @@ public class ApplicationRunner {
         }
     }
 
-    private static KeyDefinition resolveBeanDefinitionKey(Class<?> beanClass, String beanName, Context context) {
-        List<KeyDefinition> candidates = context.getBeanDefinitions().keySet().stream()
-                .filter(key -> beanClass.isAssignableFrom(key.getType()))
-                .collect(Collectors.toList());
-
-        if (beanName != null) {
-            candidates = candidates.stream().filter(key -> beanName.equals(key.getName())).collect(Collectors.toList());
-            if (candidates.size() == 1) {
-                return candidates.getFirst();
-            }
-        }
-
-        if (candidates.isEmpty()) {
-            throw new RuntimeException("No bean definition found for type " + beanClass.getName());
-        }
-
-        if (candidates.size() == 1) {
-            return candidates.getFirst();
-        }
-
-        // Ambiguity exists, try to resolve with @Primary
-        List<KeyDefinition> primaryCandidates = candidates.stream()
-                .filter(key -> isPrimary(context.getBeanDefinitions().get(key)))
-                .toList();
-
-        if (primaryCandidates.size() == 1) {
-            return primaryCandidates.getFirst();
-        }
-
-        if (primaryCandidates.size() > 1) {
-            throw new RuntimeException("Multiple primary beans found for type " + beanClass.getName() + ": " + primaryCandidates);
-        }
-
-        throw new RuntimeException("Multiple beans found for type " + beanClass.getName() + " and none is marked as primary. Use @Qualifier to specify the bean name.");
-    }
-
-    private static boolean isPrimary(Executable executable) {
-        if (executable.isAnnotationPresent(Primary.class)) {
-            return true;
-        }
-        return executable.getDeclaringClass().isAnnotationPresent(Primary.class);
-    }
-
     private static ScopeType findBeanScope(Executable executable) {
         for (Annotation annotation : executable.getAnnotations()) {
             if (annotation.annotationType().isAnnotationPresent(Bean.class) || annotation.annotationType().getName().equals(Bean.class.getName())) {
@@ -177,7 +140,7 @@ public class ApplicationRunner {
                 } catch (Exception e) { /* Ignore */ }
             }
         }
-        if (executable instanceof Constructor) {
+        if (executable instanceof java.lang.reflect.Constructor) {
             for (Annotation annotation : executable.getDeclaringClass().getAnnotations()) {
                 if (annotation.annotationType().isAnnotationPresent(Bean.class) || annotation.annotationType().getName().equals(Bean.class.getName())) {
                     try {
