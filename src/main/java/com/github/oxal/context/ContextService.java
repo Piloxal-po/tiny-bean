@@ -17,6 +17,7 @@ public class ContextService {
                             .packages(packages)
                             .singletonInstances(new ConcurrentHashMap<>())
                             .beanDefinitions(new ConcurrentHashMap<>())
+                            .beansInCreation(ConcurrentHashMap.newKeySet())
                             .beforeContextLoadCallbacks(new ArrayList<>())
                             .afterContextLoadCallbacks(new ArrayList<>())
                             .build();

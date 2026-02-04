@@ -1,9 +1,6 @@
 package com.github.oxal.runner;
 
-import com.github.oxal.annotation.Application;
-import com.github.oxal.annotation.Bean;
-import com.github.oxal.annotation.Qualifier;
-import com.github.oxal.annotation.ScopeType;
+import com.github.oxal.annotation.*;
 import com.github.oxal.context.Context;
 import com.github.oxal.context.ContextService;
 import com.github.oxal.object.KeyDefinition;
@@ -17,12 +14,9 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.ServiceLoader;
-import java.util.Set;
+import java.util.*;
 import java.util.function.BiFunction;
+import java.util.stream.Collectors;
 
 public class ApplicationRunner {
 
@@ -98,20 +92,16 @@ public class ApplicationRunner {
         }
 
         Context context = ContextService.getContext();
-
-        // Special case for Context
         if (beanClass.equals(Context.class)) {
             return (T) context;
         }
-        if (context.getBeanDefinitionKey(beanClass, beanName).isEmpty()) {
-            return (T) context.getSingletonInstances().entrySet().stream()
-                    .filter(entry -> entry.getKey().sameType(beanClass) && (beanName == null || entry.getKey().sameName(beanName)))
-                    .map(Map.Entry::getValue)
-                    .findFirst()
-                    .orElseThrow(() -> new RuntimeException("No bean or manual singleton found for class: " + beanClass.getName()));
+
+        KeyDefinition key = resolveBeanDefinitionKey(beanClass, beanName, context);
+
+        if (context.getBeansInCreation().contains(key)) {
+            throw new RuntimeException("Circular dependency detected for bean: " + key);
         }
 
-        KeyDefinition key = context.getBeanDefinitionKey(beanClass, beanName).get();
         Executable executable = context.getBeanDefinitions().get(key);
         ScopeType scope = findBeanScope(executable);
 
@@ -119,8 +109,62 @@ public class ApplicationRunner {
             return createBeanInstance(executable);
         }
 
-        // Default to SINGLETON
-        return (T) context.getSingletonInstances().computeIfAbsent(key, k -> createBeanInstance(executable));
+        // Handle singletons manually
+        if (context.getSingletonInstances().containsKey(key)) {
+            return (T) context.getSingletonInstances().get(key);
+        }
+
+        context.getBeansInCreation().add(key);
+        try {
+            T beanInstance = createBeanInstance(executable);
+            context.getSingletonInstances().put(key, beanInstance);
+            return beanInstance;
+        } finally {
+            context.getBeansInCreation().remove(key);
+        }
+    }
+
+    private static KeyDefinition resolveBeanDefinitionKey(Class<?> beanClass, String beanName, Context context) {
+        List<KeyDefinition> candidates = context.getBeanDefinitions().keySet().stream()
+                .filter(key -> beanClass.isAssignableFrom(key.getType()))
+                .collect(Collectors.toList());
+
+        if (beanName != null) {
+            candidates = candidates.stream().filter(key -> beanName.equals(key.getName())).toList();
+            if (candidates.size() == 1) {
+                return candidates.getFirst();
+            }
+        }
+
+        if (candidates.isEmpty()) {
+            throw new RuntimeException("No bean definition found for type " + beanClass.getName());
+        }
+
+        if (candidates.size() == 1) {
+            return candidates.getFirst();
+        }
+
+        // Ambiguity exists, try to resolve with @Primary
+        List<KeyDefinition> primaryCandidates = candidates.stream()
+                .filter(key -> isPrimary(context.getBeanDefinitions().get(key)))
+                .toList();
+
+        if (primaryCandidates.size() == 1) {
+            return primaryCandidates.getFirst();
+        }
+
+        if (primaryCandidates.size() > 1) {
+            throw new RuntimeException("Multiple primary beans found for type " + beanClass.getName() + ": " + primaryCandidates);
+        }
+
+        throw new RuntimeException("Multiple beans found for type " + beanClass.getName() + " and none is marked as primary. Use @Qualifier to specify the bean name.");
+    }
+
+    private static boolean isPrimary(Executable executable) {
+        if (executable.isAnnotationPresent(Primary.class)) {
+            return true;
+        }
+        return executable.getDeclaringClass().isAnnotationPresent(Primary.class);
     }
 
     private static ScopeType findBeanScope(Executable executable) {

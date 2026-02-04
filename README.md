@@ -12,8 +12,8 @@ It is designed to be easy to understand and lightweight, with minimal, carefully
 
 ## Core Features
 
-- **Annotation-Driven:** Configure your application using simple annotations like `@Application`, `@Bean`, and
-  `@Qualifier`.
+- **Annotation-Driven:** Configure your application using simple annotations like `@Application`, `@Bean`,
+  `@Qualifier`, and `@Primary`.
 - **Stereotype Annotations:** Create your own annotations (like `@Service` or `@Component`) that act as aliases for
   `@Bean`.
 - **Lifecycle Callbacks:** Hook into the application startup process with `@BeforeContextLoad` and `@AfterContextLoad`.
@@ -53,7 +53,7 @@ For Maven, add this to your `pom.xml`:
 
 ### 2. Add the Tiny-Bean Dependency
 
-Once the repository is added, you can include Tiny-Bean in your project. Replace `1.3.0` with the
+Once the repository is added, you can include Tiny-Bean in your project. Replace `1.4.0` with the
 desired [release tag](https://github.com/Piloxal-po/tiny-bean/tags).
 
 ```xml
@@ -61,7 +61,7 @@ desired [release tag](https://github.com/Piloxal-po/tiny-bean/tags).
 <dependency>
     <groupId>com.github.Piloxal-po</groupId>
     <artifactId>tiny-bean</artifactId>
-    <version>1.3.0</version>
+    <version>1.4.0</version>
 </dependency>
 ```
 
@@ -133,9 +133,14 @@ public class AppConfig {
 }
 ```
 
-### Injecting Dependencies with `@Qualifier`
+### Resolving Ambiguity with `@Qualifier` and `@Primary`
 
-When you have multiple beans of the same type, you can use `@Qualifier` to specify which one to inject.
+When multiple beans of the same type exist, the container needs help deciding which one to inject. You have two main
+options: `@Qualifier` and `@Primary`.
+
+#### Using `@Qualifier` for Specificity
+
+Use `@Qualifier` when you need to select a specific bean by its name. This is the most precise way to resolve ambiguity.
 
 ```java
 import com.github.oxal.annotation.Bean;
@@ -145,12 +150,55 @@ import com.github.oxal.annotation.Qualifier;
 public class GreetingService {
     private final String message;
 
+    // Injects the bean named "welcomeMessage"
     public GreetingService(@Qualifier("welcomeMessage") String message) {
         this.message = message;
     }
     // ...
 }
 ```
+
+#### Using `@Primary` for Defaults
+
+Use `@Primary` to mark one bean as the default choice when multiple candidates are available. This is useful when you
+have a common or preferred implementation.
+
+Imagine you have an interface `NotificationService` with two implementations:
+
+```java
+public interface NotificationService {
+    void send(String message);
+}
+
+@Bean("emailNotification")
+public class EmailNotificationService implements NotificationService {
+    // ...
+}
+
+@Primary // <-- Marks this as the default implementation
+@Bean("smsNotification")
+public class SmsNotificationService implements NotificationService {
+    // ...
+}
+```
+
+Now, when another bean requests a `NotificationService` without specifying a name, Tiny-Bean will automatically inject
+the primary one (`SmsNotificationService`).
+
+```java
+@Bean
+public class UserAccountManager {
+    private final NotificationService notificationService;
+
+    // No @Qualifier needed! SmsNotificationService will be injected.
+    public UserAccountManager(NotificationService notificationService) {
+        this.notificationService = notificationService;
+    }
+}
+```
+
+> **Note:** If you declare more than one `@Primary` bean for the same type, the application context will fail to load,
+> as it creates an unresolvable ambiguity.
 
 ### Using Scopes
 

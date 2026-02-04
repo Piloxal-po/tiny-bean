@@ -9,6 +9,8 @@ import fr.test.context.callbacks.CallbackTestFixtures;
 import fr.test.context.circular.BeanA;
 import fr.test.context.external.ExternalBean;
 import fr.test.context.missing.BeanWithMissingDependency;
+import fr.test.context.primary.common.PrimaryTestFixtures;
+import fr.test.context.primary.success.SuccessFixtures;
 import fr.test.context.scope.PrototypeBean;
 import fr.test.context.stereotype.StereotypeTestFixtures;
 import org.junit.jupiter.api.AfterEach;
@@ -150,6 +152,28 @@ class ApplicationRunnerTest {
         assertNotNull(externalBean, "Bean from ServiceLoader-provided package should be loaded.");
     }
 
+    // --- @Primary Tests ---
+
+    @Test
+    void primary_shouldInjectPrimaryBean_whenMultipleCandidatesExist() {
+        ApplicationRunner.loadContext(PrimaryApplication.class);
+        PrimaryTestFixtures.ServiceConsumer consumer = ApplicationRunner.loadBean(PrimaryTestFixtures.ServiceConsumer.class);
+        assertNotNull(consumer);
+        assertInstanceOf(SuccessFixtures.PrimaryPrimaryService.class, consumer.getService());
+    }
+
+    @Test
+    void primary_shouldThrowException_whenMultiplePrimaryBeansExist() {
+        ApplicationRunner.loadContext(MultiplePrimaryApplication.class);
+        assertThrows(RuntimeException.class, () -> ApplicationRunner.loadBean(PrimaryTestFixtures.PrimaryTestService.class));
+    }
+
+    @Test
+    void primary_shouldThrowException_whenAmbiguityExistsAndNoPrimaryBean() {
+        ApplicationRunner.loadContext(NoPrimaryApplication.class);
+        assertThrows(RuntimeException.class, () -> ApplicationRunner.loadBean(PrimaryTestFixtures.PrimaryTestService.class));
+    }
+
 
     // --- Core Functionality Tests ---
 
@@ -185,5 +209,17 @@ class ApplicationRunnerTest {
 
     @Application
     private static class ServiceLoaderApplication {
+    }
+
+    @Application(packages = {"fr.test.context.primary.common", "fr.test.context.primary.success"})
+    private static class PrimaryApplication {
+    }
+
+    @Application(packages = {"fr.test.context.primary.common", "fr.test.context.primary.multiple"})
+    private static class MultiplePrimaryApplication {
+    }
+
+    @Application(packages = {"fr.test.context.primary.common", "fr.test.context.primary.ambiguous"})
+    private static class NoPrimaryApplication {
     }
 }
