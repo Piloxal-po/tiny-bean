@@ -53,7 +53,7 @@ For Maven, add this to your `pom.xml`:
 
 ### 2. Add the Tiny-Bean Dependency
 
-Once the repository is added, you can include Tiny-Bean in your project. Replace `1.4.0` with the
+Once the repository is added, you can include Tiny-Bean in your project. Replace `1.5.0` with the
 desired [release tag](https://github.com/Piloxal-po/tiny-bean/tags).
 
 ```xml
@@ -61,7 +61,7 @@ desired [release tag](https://github.com/Piloxal-po/tiny-bean/tags).
 <dependency>
     <groupId>com.github.Piloxal-po</groupId>
     <artifactId>tiny-bean</artifactId>
-    <version>1.4.0</version>
+    <version>1.5.0</version>
 </dependency>
 ```
 
