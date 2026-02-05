@@ -28,6 +28,17 @@ public class ApplicationRunner {
         return loadBean(beanClass, null);
     }
 
+    public static <T> List<T> loadBeans(Class<T> beanClass) {
+        log.trace("Entering loadBeans(beanClass={})", beanClass.getName());
+        Context context = ContextService.getContext();
+
+        List<KeyDefinition> keys = BeanDefinitionResolver.resolveAll(beanClass, context);
+
+        return keys.stream()
+                .map(key -> (T) loadBean(key.getType(), key.getName()))
+                .toList();
+    }
+
     @SuppressWarnings("unchecked")
     public static <T> T loadBean(Class<T> beanClass, String beanName) {
         log.trace("Entering loadBean(beanClass={}, beanName={})", beanClass.getName(), beanName);
@@ -37,7 +48,6 @@ public class ApplicationRunner {
             log.trace("Returning context instance directly.");
             return (T) context;
         }
-
         List<Object> manualCandidates = context.getSingletonInstances().entrySet().stream()
                 .filter(entry -> beanClass.isAssignableFrom(entry.getKey().getType()))
                 .filter(entry -> beanName == null || beanName.equals(entry.getKey().getName()))

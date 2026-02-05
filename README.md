@@ -13,13 +13,14 @@ It is designed to be easy to understand and lightweight, with minimal, carefully
 ## Core Features
 
 - **Annotation-Driven:** Configure your application using simple annotations like `@Application`, `@Bean`,
-  `@Qualifier`, and `@Primary`.
+  `@Qualifier`, `@Primary`, and `@Configuration`.
 - **Stereotype Annotations:** Create your own annotations (like `@Service` or `@Component`) that act as aliases for
   `@Bean`.
 - **Lifecycle Callbacks:** Hook into the application startup process with `@BeforeContextLoad` and `@AfterContextLoad`.
 - **Classpath Scanning:** Automatically discovers and registers your beans from specified packages.
 - **Extensible Scanning:** Use the `ServiceLoader` pattern to add more packages to the scan from separate modules.
-- **Dependency Injection:** Supports constructor-based dependency injection.
+- **Dependency Injection:** Supports constructor-based dependency injection, including collection injection (`List<T>`).
+- **Configuration Management:** Automatically binds properties from `application.properties` to `@Configuration` beans.
 - **Bean Scopes:** Provides support for `SINGLETON` (default) and `PROTOTYPE` scopes.
 - **Thread-Safe:** The context and bean loading mechanism are fully thread-safe, ready for concurrent applications.
 
@@ -29,6 +30,7 @@ Tiny-Bean relies on two key libraries:
 
 - **`io.github.classgraph`**: A fast and powerful classpath scanner used to discover bean definitions.
 - **`org.projectlombok:lombok`**: A compile-time library to reduce boilerplate code within the framework itself.
+- **`org.slf4j:slf4j-api`**: The logging facade used by the framework.
 
 ---
 
@@ -53,7 +55,7 @@ For Maven, add this to your `pom.xml`:
 
 ### 2. Add the Tiny-Bean Dependency
 
-Once the repository is added, you can include Tiny-Bean in your project. Replace `1.5.0` with the
+Once the repository is added, you can include Tiny-Bean in your project. Replace `1.6.0` with the
 desired [release tag](https://github.com/Piloxal-po/tiny-bean/tags).
 
 ```xml
@@ -61,7 +63,7 @@ desired [release tag](https://github.com/Piloxal-po/tiny-bean/tags).
 <dependency>
     <groupId>com.github.Piloxal-po</groupId>
     <artifactId>tiny-bean</artifactId>
-    <version>1.5.0</version>
+    <version>1.6.0</version>
 </dependency>
 ```
 
@@ -199,6 +201,104 @@ public class UserAccountManager {
 
 > **Note:** If you declare more than one `@Primary` bean for the same type, the application context will fail to load,
 > as it creates an unresolvable ambiguity.
+
+### Collection Injection
+
+Tiny-Bean supports injecting a list of all beans of a specific type. This is particularly useful for plugin architectures
+or when you want to apply a chain of responsibility pattern.
+
+Simply declare a dependency of type `List<T>`, where `T` is the interface or class of the beans you want to collect.
+
+```java
+public interface Plugin {
+    void execute();
+}
+
+@Bean
+public class PluginA implements Plugin { /* ... */ }
+
+@Bean
+public class PluginB implements Plugin { /* ... */ }
+
+@Bean
+public class PluginManager {
+    private final List<Plugin> plugins;
+
+    // Tiny-Bean will inject a list containing both PluginA and PluginB
+    public PluginManager(List<Plugin> plugins) {
+        this.plugins = plugins;
+    }
+}
+```
+
+### Configuration Management
+
+Tiny-Bean allows you to externalize your configuration using an `application.properties` file placed at the root of your
+classpath (e.g., in `src/main/resources`).
+
+You can bind these properties to a Java class using the `@Configuration` annotation.
+
+**1. Create your `application.properties`:**
+
+```properties
+server.port=8080
+server.host=localhost
+database.url=jdbc:mysql://localhost:3306/mydb
+database.credentials.username=admin
+database.credentials.password=secret
+```
+
+**2. Create a Configuration Class:**
+
+Use the `prefix` attribute to group properties. Tiny-Bean supports nested objects for hierarchical configuration.
+
+```java
+import com.github.oxal.annotation.Configuration;
+
+@Configuration(prefix = "server")
+public class ServerConfig {
+    private int port;      // Maps to "server.port"
+    private String host;   // Maps to "server.host"
+
+    // Getters...
+}
+
+@Configuration(prefix = "database")
+public class DatabaseConfig {
+    private String url;    // Maps to "database.url"
+    
+    // Nested configuration object
+    private Credentials credentials; // Maps to "database.credentials"
+
+    // Getters...
+
+    public static class Credentials {
+        private String username; // Maps to "database.credentials.username"
+        private String password; // Maps to "database.credentials.password"
+        
+        // Getters...
+    }
+}
+```
+
+**3. Inject and Use:**
+
+Configuration classes are beans, so you can inject them anywhere.
+
+```java
+@Bean
+public class WebServer {
+    private final ServerConfig config;
+
+    public WebServer(ServerConfig config) {
+        this.config = config;
+    }
+
+    public void start() {
+        System.out.println("Starting server on " + config.getHost() + ":" + config.getPort());
+    }
+}
+```
 
 ### Using Scopes
 

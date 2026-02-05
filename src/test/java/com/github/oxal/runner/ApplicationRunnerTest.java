@@ -9,10 +9,12 @@ import fr.test.context.callbacks.CallbackTestFixtures;
 import fr.test.context.circular.BeanA;
 import fr.test.context.configuration.ConfigurationTestFixtures;
 import fr.test.context.external.ExternalBean;
+import fr.test.context.list.ListInjectionTestFixtures;
 import fr.test.context.missing.BeanWithMissingDependency;
 import fr.test.context.primary.common.PrimaryTestFixtures;
 import fr.test.context.primary.success.SuccessFixtures;
 import fr.test.context.scope.PrototypeBean;
+import fr.test.context.set.SetInjectionTestFixtures;
 import fr.test.context.stereotype.StereotypeTestFixtures;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -199,6 +201,36 @@ class ApplicationRunnerTest {
         assertEquals(10, dbConfig.getConnection().getMax());
     }
 
+    // --- List Injection Tests ---
+
+    @Test
+    void listInjection_shouldInjectAllBeansOfType() {
+        ApplicationRunner.loadContext(ListInjectionApplication.class);
+        ListInjectionTestFixtures.PluginManager manager = ApplicationRunner.loadBean(ListInjectionTestFixtures.PluginManager.class);
+
+        assertNotNull(manager);
+        assertNotNull(manager.getPlugins());
+        assertEquals(2, manager.getPlugins().size());
+
+        List<String> names = manager.getPlugins().stream().map(ListInjectionTestFixtures.MyPlugin::getName).toList();
+        assertTrue(names.contains("A"));
+        assertTrue(names.contains("B"));
+    }
+
+    @Test
+    void setInjection_shouldInjectAllBeansOfType() {
+        ApplicationRunner.loadContext(SetInjectionApplication.class);
+        SetInjectionTestFixtures.PluginManager manager = ApplicationRunner.loadBean(SetInjectionTestFixtures.PluginManager.class);
+
+        assertNotNull(manager);
+        assertNotNull(manager.getPlugins());
+        assertEquals(2, manager.getPlugins().size());
+
+        List<String> names = manager.getPlugins().stream().map(SetInjectionTestFixtures.MyPlugin::getName).toList();
+        assertTrue(names.contains("A"));
+        assertTrue(names.contains("B"));
+    }
+
 
     // --- Core Functionality Tests ---
 
@@ -250,5 +282,13 @@ class ApplicationRunnerTest {
 
     @Application(packages = "fr.test.context.configuration")
     private static class ConfigurationApplication {
+    }
+
+    @Application(packages = "fr.test.context.list")
+    private static class ListInjectionApplication {
+    }
+
+    @Application(packages = "fr.test.context.set")
+    private static class SetInjectionApplication {
     }
 }
