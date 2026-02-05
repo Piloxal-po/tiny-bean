@@ -63,7 +63,7 @@ public class BeanFactory {
         }
     }
 
-    private static Object[] resolveArguments(Executable executable) {
+    public static Object[] resolveArguments(Executable executable) {
         Parameter[] parameters = executable.getParameters();
         Object[] args = new Object[parameters.length];
 

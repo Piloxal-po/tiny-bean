@@ -31,6 +31,7 @@ class ApplicationRunnerTest {
     @BeforeEach
     void setup() {
         CallbackTestFixtures.reset();
+        SetInjectionTestFixtures.CallbackBean.injectedServices = null;
     }
 
     @AfterEach
@@ -216,17 +217,14 @@ class ApplicationRunnerTest {
         assertTrue(names.contains("A"));
         assertTrue(names.contains("B"));
     }
-
+    
     @Test
     void setInjection_shouldInjectAllBeansOfType() {
         ApplicationRunner.loadContext(SetInjectionApplication.class);
-        SetInjectionTestFixtures.PluginManager manager = ApplicationRunner.loadBean(SetInjectionTestFixtures.PluginManager.class);
-
-        assertNotNull(manager);
-        assertNotNull(manager.getPlugins());
-        assertEquals(2, manager.getPlugins().size());
-
-        List<String> names = manager.getPlugins().stream().map(SetInjectionTestFixtures.MyPlugin::getName).toList();
+        assertNotNull(SetInjectionTestFixtures.CallbackBean.injectedServices);
+        assertEquals(2, SetInjectionTestFixtures.CallbackBean.injectedServices.size());
+        
+        List<String> names = SetInjectionTestFixtures.CallbackBean.injectedServices.stream().map(SetInjectionTestFixtures.MyService::getName).toList();
         assertTrue(names.contains("A"));
         assertTrue(names.contains("B"));
     }

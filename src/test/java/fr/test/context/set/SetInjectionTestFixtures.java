@@ -1,17 +1,18 @@
 package fr.test.context.set;
 
 import com.github.oxal.annotation.Bean;
+import com.github.oxal.annotation.context.AfterContextLoad;
 
 import java.util.Set;
 
 public class SetInjectionTestFixtures {
 
-    public interface MyPlugin {
+    public interface MyService {
         String getName();
     }
 
     @Bean
-    public static class PluginA implements MyPlugin {
+    public static class ServiceA implements MyService {
         @Override
         public String getName() {
             return "A";
@@ -19,23 +20,19 @@ public class SetInjectionTestFixtures {
     }
 
     @Bean
-    public static class PluginB implements MyPlugin {
+    public static class ServiceB implements MyService {
         @Override
         public String getName() {
             return "B";
         }
     }
 
-    @Bean
-    public static class PluginManager {
-        private final Set<MyPlugin> plugins;
+    public static class CallbackBean {
+        public static Set<MyService> injectedServices;
 
-        public PluginManager(Set<MyPlugin> plugins) {
-            this.plugins = plugins;
-        }
-
-        public Set<MyPlugin> getPlugins() {
-            return plugins;
+        @AfterContextLoad
+        public void onStartup(Set<MyService> services) {
+            injectedServices = services;
         }
     }
 }

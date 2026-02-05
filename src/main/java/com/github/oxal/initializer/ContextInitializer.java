@@ -1,12 +1,11 @@
 package com.github.oxal.initializer;
 
 import com.github.oxal.annotation.Application;
-import com.github.oxal.annotation.Qualifier;
 import com.github.oxal.context.Context;
 import com.github.oxal.context.ContextService;
+import com.github.oxal.factory.BeanFactory;
 import com.github.oxal.object.KeyDefinition;
 import com.github.oxal.provider.PackageProvider;
-import com.github.oxal.runner.ApplicationRunner;
 import com.github.oxal.scanner.ApplicationScanner;
 import com.github.oxal.utils.PropertyLoader;
 import io.github.classgraph.ClassGraph;
@@ -75,17 +74,7 @@ public class ContextInitializer {
             try {
                 callback.setAccessible(true);
                 Object instance = callback.getDeclaringClass().getDeclaredConstructor().newInstance();
-                Object[] args = new Object[callback.getParameterCount()];
-                for (int i = 0; i < callback.getParameterCount(); i++) {
-                    Class<?> paramType = callback.getParameterTypes()[i];
-                    if (paramType.equals(Context.class)) {
-                        args[i] = context;
-                    } else {
-                        Qualifier qualifier = callback.getParameters()[i].getAnnotation(Qualifier.class);
-                        String qualifierName = (qualifier != null) ? qualifier.value() : null;
-                        args[i] = ApplicationRunner.loadBean(paramType, qualifierName);
-                    }
-                }
+                Object[] args = BeanFactory.resolveArguments(callback);
                 callback.invoke(instance, args);
             } catch (Exception e) {
                 log.error("Error executing @AfterContextLoad callback: {}", callback.getName(), e);
