@@ -8,6 +8,7 @@ import com.github.oxal.object.KeyDefinition;
 import com.github.oxal.provider.PackageProvider;
 import com.github.oxal.runner.ApplicationRunner;
 import com.github.oxal.scanner.ApplicationScanner;
+import com.github.oxal.utils.PropertyLoader;
 import io.github.classgraph.ClassGraph;
 import io.github.classgraph.ScanResult;
 import lombok.extern.slf4j.Slf4j;
@@ -21,8 +22,10 @@ import java.util.Set;
 @Slf4j
 public class ContextInitializer {
 
-    public void initialize(Class<?> application) {
+    public static void initialize(Class<?> application) {
         log.info("Starting Tiny-Bean context for application: {}", application.getName());
+
+        PropertyLoader.loadProperties();
 
         if (!application.isAnnotationPresent(Application.class)) {
             log.error("The application class {} is not annotated with @Application.", application.getName());
@@ -66,7 +69,7 @@ public class ContextInitializer {
         log.info("Tiny-Bean context initialized successfully.");
     }
 
-    private void executeAfterCallbacks(Context context) {
+    private static void executeAfterCallbacks(Context context) {
         for (Method callback : context.getAfterContextLoadCallbacks()) {
             log.debug("Executing @AfterContextLoad callback: {}", callback);
             try {

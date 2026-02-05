@@ -20,12 +20,8 @@ import java.util.Map;
 @Slf4j
 public class ApplicationRunner {
 
-    private static final BeanFactory beanFactory = new BeanFactory();
-    private static final BeanDefinitionResolver beanDefinitionResolver = new BeanDefinitionResolver();
-    private static final ContextInitializer contextInitializer = new ContextInitializer();
-
     public static void loadContext(Class<?> application) {
-        contextInitializer.initialize(application);
+        ContextInitializer.initialize(application);
     }
 
     public static <T> T loadBean(Class<T> beanClass) {
@@ -52,7 +48,7 @@ public class ApplicationRunner {
             log.debug("Found unique manually registered singleton for type {}. Returning it directly.", beanClass.getName());
             return (T) manualCandidates.getFirst();
         }
-        KeyDefinition key = beanDefinitionResolver.resolve(beanClass, beanName, context);
+        KeyDefinition key = BeanDefinitionResolver.resolve(beanClass, beanName, context);
         MDC.put("bean", key.toString());
 
         try {
@@ -67,7 +63,7 @@ public class ApplicationRunner {
 
             if (scope == ScopeType.PROTOTYPE) {
                 log.debug("Creating new PROTOTYPE instance for bean [{}]", key);
-                return beanFactory.createBeanInstance(executable);
+                return BeanFactory.createBeanInstance(executable);
             }
 
             // Handle singletons
@@ -79,7 +75,7 @@ public class ApplicationRunner {
             log.debug("Creating new SINGLETON instance for bean [{}]", key);
             context.markAsInCreation(key);
             try {
-                T beanInstance = beanFactory.createBeanInstance(executable);
+                T beanInstance = BeanFactory.createBeanInstance(executable);
                 context.registerSingleton(key, beanInstance);
                 log.debug("Successfully created and cached singleton bean [{}]", key);
                 return beanInstance;

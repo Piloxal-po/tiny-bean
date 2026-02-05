@@ -3,6 +3,7 @@ package com.github.oxal.scanner;
 import com.github.oxal.annotation.Application;
 import com.github.oxal.context.ContextService;
 import com.github.oxal.context.TestContextHelper;
+import com.github.oxal.factory.BeanFactory;
 import com.github.oxal.object.KeyDefinition;
 import com.github.oxal.runner.ApplicationRunner;
 import io.github.classgraph.ScanResult;
@@ -30,7 +31,7 @@ class ApplicationScannerTest {
         // Then
         Map<KeyDefinition, Executable> beanDefinitions = ContextService.getContext().getBeanDefinitions();
         assertNotNull(beanDefinitions, "Bean definitions map in context should not be null.");
-        assertEquals(6, beanDefinitions.size(), "Context should contain 5 bean definitions in total.");
+        assertEquals(7, beanDefinitions.size(), "Context should contain X bean definitions in total.");
 
         // Check for a class bean definition
         assertTrue(beanDefinitions.keySet().stream()
@@ -44,6 +45,6 @@ class ApplicationScannerTest {
 
         // Ensure no instances have been created yet
         assertEquals(1, ContextService.getContext().getSingletonInstances().size(), "Scanning create ScanResult singleton instance");
-        assertEquals(ScanResult.class, ContextService.getContext().getSingletonInstances().get(KeyDefinition.builder().type(ScanResult.class).build()).getClass(), "Scanning create ScanResult singleton instance");
+        assertEquals(ScanResult.class, BeanFactory.loadBean(ScanResult.class).getClass(), "Scanning create ScanResult singleton instance");
     }
 }

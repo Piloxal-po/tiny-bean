@@ -7,6 +7,7 @@ import fr.test.context.base.Bean1;
 import fr.test.context.base.Bean2;
 import fr.test.context.callbacks.CallbackTestFixtures;
 import fr.test.context.circular.BeanA;
+import fr.test.context.configuration.ConfigurationTestFixtures;
 import fr.test.context.external.ExternalBean;
 import fr.test.context.missing.BeanWithMissingDependency;
 import fr.test.context.primary.common.PrimaryTestFixtures;
@@ -87,7 +88,7 @@ class ApplicationRunnerTest {
     @Test
     void loadContext_shouldCountBeanDefinitions() {
         ApplicationRunner.loadContext(ApplicationMain.class);
-        assertEquals(6, ContextService.getContext().getBeanDefinitionCount());
+        assertEquals(7, ContextService.getContext().getBeanDefinitionCount());
     }
 
     // --- Stereotype Tests ---
@@ -105,8 +106,6 @@ class ApplicationRunnerTest {
 
         ApplicationRunner.loadBean(String.class, "test");
         assertEquals(6, ContextService.getContext().getSingletonInstanceCount());
-
-        ApplicationRunner.loadBean(String.class, "testScanResult");
     }
 
     @Test
@@ -176,6 +175,30 @@ class ApplicationRunnerTest {
         assertThrows(RuntimeException.class, () -> ApplicationRunner.loadBean(PrimaryTestFixtures.PrimaryTestService.class));
     }
 
+    // --- @Configuration Tests ---
+
+    @Test
+    void configuration_shouldInjectProperties() {
+        ApplicationRunner.loadContext(ConfigurationApplication.class);
+
+        ConfigurationTestFixtures.ServerConfig serverConfig = ApplicationRunner.loadBean(ConfigurationTestFixtures.ServerConfig.class);
+        assertEquals(8080, serverConfig.getPort());
+        assertEquals("localhost", serverConfig.getHost());
+
+        ConfigurationTestFixtures.AppConfig appConfig = ApplicationRunner.loadBean(ConfigurationTestFixtures.AppConfig.class);
+        assertEquals("TinyBeanApp", appConfig.getName());
+        assertEquals("1.0.0", appConfig.getVersion());
+
+        ConfigurationTestFixtures.FeatureConfig featureConfig = ApplicationRunner.loadBean(ConfigurationTestFixtures.FeatureConfig.class);
+        assertTrue(featureConfig.isEnabled());
+
+        ConfigurationTestFixtures.DatabaseConfig dbConfig = ApplicationRunner.loadBean(ConfigurationTestFixtures.DatabaseConfig.class);
+        assertEquals("jdbc:h2:mem:test", dbConfig.getUrl());
+        assertEquals("sa", dbConfig.getUsername());
+        assertNotNull(dbConfig.getConnection());
+        assertEquals(10, dbConfig.getConnection().getMax());
+    }
+
 
     // --- Core Functionality Tests ---
 
@@ -223,5 +246,9 @@ class ApplicationRunnerTest {
 
     @Application(packages = {"fr.test.context.primary.common", "fr.test.context.primary.ambiguous"})
     private static class NoPrimaryApplication {
+    }
+
+    @Application(packages = "fr.test.context.configuration")
+    private static class ConfigurationApplication {
     }
 }

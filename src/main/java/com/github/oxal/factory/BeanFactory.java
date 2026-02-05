@@ -1,5 +1,7 @@
 package com.github.oxal.factory;
 
+import com.github.oxal.annotation.Configuration;
+import com.github.oxal.injector.ConfigurationInjector;
 import com.github.oxal.runner.ApplicationRunner;
 import lombok.extern.slf4j.Slf4j;
 
@@ -14,7 +16,15 @@ import java.util.stream.Collectors;
 @Slf4j
 public class BeanFactory {
 
-    public <T> T createBeanInstance(Executable executable) {
+    public static <T> T loadBean(Class<T> beanClass, String beanName) {
+        return ApplicationRunner.loadBean(beanClass, beanName);
+    }
+
+    public static <T> T loadBean(Class<T> beanClass) {
+        return ApplicationRunner.loadBean(beanClass);
+    }
+
+    public static <T> T createBeanInstance(Executable executable) {
         log.trace("createBeanInstance called for executable: {}", executable);
         if (executable instanceof Method method) {
             return loadBeanByMethod(method);
@@ -25,7 +35,7 @@ public class BeanFactory {
         throw new IllegalStateException("Unsupported executable type: " + executable.getClass().getName());
     }
 
-    private <T> T processLoad(Executable executable, BiFunction<Object, Object[], T> invocation) {
+    private static <T> T processLoad(Executable executable, BiFunction<Object, Object[], T> invocation) {
         Class<?>[] paramTypes = executable.getParameterTypes();
         log.debug("Resolving {} dependencies for '{}': {}", paramTypes.length, executable.getName(), Arrays.stream(paramTypes).map(Class::getSimpleName).collect(Collectors.joining(", ")));
 
@@ -62,12 +72,13 @@ public class BeanFactory {
         }
     }
 
-    private <T> T loadBeanByMethod(Method method) {
+    private static <T> T loadBeanByMethod(Method method) {
         return processLoad(method, (instance, args) -> {
             try {
                 method.setAccessible(true);
                 T bean = (T) method.invoke(instance, args);
                 log.trace("Successfully invoked @Bean method: {}", method.getName());
+                injectConfigurationProperties(bean);
                 return bean;
             } catch (IllegalAccessException | InvocationTargetException e) {
                 log.error("Failed to invoke @Bean method: {}", method.getName(), e);
@@ -76,17 +87,29 @@ public class BeanFactory {
         });
     }
 
-    private <T> T loadBeanByConstructor(Constructor<T> constructor) {
+    private static <T> T loadBeanByConstructor(Constructor<T> constructor) {
         return processLoad(constructor, (instance, args) -> {
             try {
                 constructor.setAccessible(true);
                 T bean = constructor.newInstance(args);
                 log.trace("Successfully invoked constructor: {}", constructor.getName());
+                injectConfigurationProperties(bean);
                 return bean;
             } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
                 log.error("Failed to invoke constructor: {}", constructor.getName(), e);
                 throw new RuntimeException("Failed to invoke constructor: " + constructor.getName(), e);
             }
         });
+    }
+
+    private static void injectConfigurationProperties(Object bean) {
+        if (bean == null) return;
+        Class<?> beanClass = bean.getClass();
+        if (beanClass.isAnnotationPresent(Configuration.class)) {
+            Configuration config = beanClass.getAnnotation(Configuration.class);
+            String prefix = config.prefix();
+            log.debug("Injecting configuration properties for bean '{}' with prefix '{}'", beanClass.getSimpleName(), prefix);
+            ConfigurationInjector.inject(bean, prefix);
+        }
     }
 }

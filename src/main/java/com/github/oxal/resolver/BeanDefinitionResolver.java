@@ -10,7 +10,7 @@ import java.util.stream.Collectors;
 
 public class BeanDefinitionResolver {
 
-    public KeyDefinition resolve(Class<?> beanClass, String beanName, Context context) {
+    public static KeyDefinition resolve(Class<?> beanClass, String beanName, Context context) {
         List<KeyDefinition> candidates = context.getBeanDefinitions().keySet().stream()
                 .filter(key -> beanClass.isAssignableFrom(key.getType()))
                 .collect(Collectors.toList());
@@ -46,7 +46,7 @@ public class BeanDefinitionResolver {
         throw new RuntimeException("Multiple beans found for type " + beanClass.getName() + " and none is marked as primary. Use @Qualifier to specify the bean name.");
     }
 
-    private boolean isPrimary(Executable executable) {
+    private static boolean isPrimary(Executable executable) {
         if (executable.isAnnotationPresent(Primary.class)) {
             return true;
         }
