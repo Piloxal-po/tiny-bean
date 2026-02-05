@@ -53,7 +53,8 @@ public class ContextInitializer {
             ApplicationScanner.executeBeforeCallbacks(scanResult);
 
             Context context = ContextService.createContexte(application, packages);
-            context.registerSingleton(KeyDefinition.builder().type(ScanResult.class).build(), scanResult);
+            context.registerSingleton(KeyDefinition.builder().type(ScanResult.class)
+                    .name(ScanResult.class.getSimpleName()).build(), scanResult);
 
             log.debug("Populating context with bean definitions and @After callbacks...");
             ApplicationScanner.populateContextFromScan(scanResult);

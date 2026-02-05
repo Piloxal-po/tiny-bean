@@ -105,6 +105,8 @@ class ApplicationRunnerTest {
 
         ApplicationRunner.loadBean(String.class, "test");
         assertEquals(6, ContextService.getContext().getSingletonInstanceCount());
+
+        ApplicationRunner.loadBean(String.class, "testScanResult");
     }
 
     @Test

@@ -2,26 +2,32 @@ package fr.test.context.base;
 
 import com.github.oxal.annotation.Bean;
 import com.github.oxal.annotation.Qualifier;
+import io.github.classgraph.ScanResult;
 
 public class Method {
 
     @Bean
-    public String test(){
+    public String test() {
         return "hello world test";
     }
 
     @Bean
-    public String test2(){
+    public String test2() {
         return "je m'en fou test2";
     }
 
     @Bean("test3")
-    public String menfou(){
+    public String menfou() {
         return "je ne sais pas test3";
     }
 
     @Bean
-    public Bean1 testBean(@Qualifier("test3") String test){
+    public Bean1 testBean(@Qualifier("test3") String test) {
         return new Bean1(test);
+    }
+
+    @Bean("testScanResult")
+    public String testScanResult(ScanResult scanResult) {
+        return "null";
     }
 }

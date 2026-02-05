@@ -14,6 +14,8 @@ import org.slf4j.MDC;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Method;
+import java.util.List;
+import java.util.Map;
 
 @Slf4j
 public class ApplicationRunner {
@@ -40,6 +42,16 @@ public class ApplicationRunner {
             return (T) context;
         }
 
+        List<Object> manualCandidates = context.getSingletonInstances().entrySet().stream()
+                .filter(entry -> beanClass.isAssignableFrom(entry.getKey().getType()))
+                .filter(entry -> beanName == null || beanName.equals(entry.getKey().getName()))
+                .map(Map.Entry::getValue)
+                .toList();
+
+        if (manualCandidates.size() == 1) {
+            log.debug("Found unique manually registered singleton for type {}. Returning it directly.", beanClass.getName());
+            return (T) manualCandidates.getFirst();
+        }
         KeyDefinition key = beanDefinitionResolver.resolve(beanClass, beanName, context);
         MDC.put("bean", key.toString());
 
