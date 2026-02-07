@@ -34,6 +34,25 @@ public class Context {
         beanDefinitions.put(keyDefinition, executable);
     }
 
+    public void addBeanDefinitionByMethod(Class<?> clazz, Class<?> type, String methodName) {
+        for (Method method : clazz.getDeclaredMethods()) {
+            if (method.getName().equals(methodName)) {
+                log.debug("Manually adding bean definition via method: {}", method);
+                addBeanDefinition(KeyDefinition.builder().type(type).build(), method);
+                return;
+            }
+        }
+        throw new RuntimeException("Method not found: " + methodName);
+    }
+
+    public void addBeanDefinitionByConstructor(Class<?> clazz, Class<?> type) {
+        if (clazz.getConstructors().length != 1) {
+            throw new RuntimeException("Class has more than one constructor: " + clazz.getName());
+        }
+        log.debug("Manually adding bean definition via constructor: {}", clazz.getConstructors()[0]);
+        addBeanDefinition(KeyDefinition.builder().type(type).build(), clazz.getConstructors()[0]);
+    }
+
     public void addAfterContextLoadCallback(Method callback) {
         log.debug("Adding after-context-load callback: {}", callback);
         afterContextLoadCallbacks.add(callback);

@@ -1,6 +1,7 @@
 package com.github.oxal.runner;
 
 import com.github.oxal.annotation.Application;
+import com.github.oxal.context.Context;
 import com.github.oxal.context.ContextService;
 import com.github.oxal.context.TestContextHelper;
 import fr.test.context.base.Bean1;
@@ -10,6 +11,7 @@ import fr.test.context.circular.BeanA;
 import fr.test.context.configuration.ConfigurationTestFixtures;
 import fr.test.context.external.ExternalBean;
 import fr.test.context.list.ListInjectionTestFixtures;
+import fr.test.context.manual.ManualBeanTestFixtures;
 import fr.test.context.missing.BeanWithMissingDependency;
 import fr.test.context.primary.common.PrimaryTestFixtures;
 import fr.test.context.primary.success.SuccessFixtures;
@@ -228,6 +230,36 @@ class ApplicationRunnerTest {
         assertTrue(names.contains("A"));
         assertTrue(names.contains("B"));
     }
+    
+    // --- Manual Registration Tests ---
+    
+    @Test
+    void manualRegistration_shouldRegisterBeanByConstructor() {
+        ApplicationRunner.loadContext(ManualRegistrationApplication.class);
+        Context context = ContextService.getContext();
+        
+        // Manually register the bean definition
+        context.addBeanDefinitionByConstructor(ManualBeanTestFixtures.ManualConstructorBean.class, ManualBeanTestFixtures.ManualConstructorBean.class);
+        
+        // Try to load it
+        ManualBeanTestFixtures.ManualConstructorBean bean = ApplicationRunner.loadBean(ManualBeanTestFixtures.ManualConstructorBean.class);
+        assertNotNull(bean);
+        assertEquals("Hello from constructor bean", bean.sayHello());
+    }
+    
+    @Test
+    void manualRegistration_shouldRegisterBeanByMethod() {
+        ApplicationRunner.loadContext(ManualRegistrationApplication.class);
+        Context context = ContextService.getContext();
+        
+        // Manually register the bean definition
+        context.addBeanDefinitionByMethod(ManualBeanTestFixtures.ManualConfig.class, ManualBeanTestFixtures.ManualMethodBean.class, "myMethodBean");
+        
+        // Try to load it
+        ManualBeanTestFixtures.ManualMethodBean bean = ApplicationRunner.loadBean(ManualBeanTestFixtures.ManualMethodBean.class);
+        assertNotNull(bean);
+        assertEquals("Hello from method bean", bean.sayHello());
+    }
 
 
     // --- Core Functionality Tests ---
@@ -288,5 +320,9 @@ class ApplicationRunnerTest {
 
     @Application(packages = "fr.test.context.set")
     private static class SetInjectionApplication {
+    }
+    
+    @Application // No packages scanned, purely manual
+    private static class ManualRegistrationApplication {
     }
 }
